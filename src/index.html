@@ -55,7 +55,7 @@
         </ul>
 
         <h2>Optimizations</h2>
-        <p>We needed to run DTW—an O(n×m) algorithm—against a word list in milliseconds, entirely client-side. The engine is written in Rust and compiled to WebAssembly. Key optimizations:</p>
+        <p>To run DTW—an O(n×m) algorithm—against a word list in milliseconds, entirely client-side, we needed some key optimizations. The engine is written in Rust and compiled to WebAssembly:</p>
         <ul>
             <li><strong>Sakoe-Chiba band</strong> — constrain DTW to a diagonal band, reducing complexity to O(n×w)</li>
             <li><strong>Early termination</strong> — prune candidates mid-computation if partial score exceeds current best</li>

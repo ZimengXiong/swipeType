@@ -12,7 +12,7 @@ Try these swipe patterns:
 
 ## Optimizations
 
-We needed to run DTW—an O(n×m) algorithm—against a word list in milliseconds, entirely client-side. The engine is written in Rust and compiled to WebAssembly. Key optimizations:
+To run DTW—an O(n×m) algorithm—against a word list in milliseconds, entirely client-side, we needed some key optimizations. The engine is written in Rust and compiled to WebAssembly:
 
 - **Sakoe-Chiba band** — constrain DTW to a diagonal band, reducing complexity to O(n×w)
 - **Early termination** — prune candidates mid-computation if partial score exceeds current best
