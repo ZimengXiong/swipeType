@@ -5,21 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Swipe Type</title>
     <style>
-        html, body {
-            height: 100vh;
-            margin: 0;
-            overflow: hidden;
-        }
         body {
             font-family: system-ui, sans-serif;
             background: #eee;
-            width: 60vw;
+            width: 100%;
             max-width: 700px;
             margin: 0 auto;
             padding: 40px 20px;
             box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
         }
         div { opacity: 0.8; }
         h1 { font-size: 1.5em; }
@@ -32,10 +25,11 @@
             font-family: inherit;
         }
         #status { margin-top: 8px; font-size: 0.9em; }
-        #results { margin-top: 8px; height: 130px; }
+        #results { margin-top: 8px; height: 150px; margin-bottom: 16px; }
         #keyboard-container {
             position: relative;
-            margin-top: 20px;
+            margin-top: 16px;
+            margin-bottom: 16px;
             width: 100%;
             aspect-ratio: 10 / 3;
         }
@@ -74,9 +68,11 @@
         #explanation h2 { font-size: 1.1em; }
         .prediction {
             display: flex;
-            justify-content: space-between;
             padding: 4px 0;
         }
+        .prediction .word { flex: 1; }
+        .prediction .score { width: 80px; text-align: right; margin-right: 24px; }
+        .prediction .popularity { width: 80px; text-align: right; }
         a { color: #348; }
     </style>
 </head>
@@ -401,10 +397,15 @@
                 const elapsed = ((performance.now() - start) / 1000).toFixed(3);
                 status.textContent = `Computed in ${elapsed}s`;
                 const predictions = JSON.parse(json);
-                results.innerHTML = predictions.map(p =>
+                results.innerHTML = `<div class="prediction" style="font-weight:bold;opacity:0.6">
+                        <span class="word">Word</span>
+                        <span class="score">Score</span>
+                        <span class="popularity">Popularity</span>
+                    </div>` + predictions.map(p =>
                     `<div class="prediction">
                         <span class="word">${p.word}</span>
                         <span class="score">${p.score.toFixed(3)}</span>
+                        <span class="popularity">${p.freq.toFixed(3)}</span>
                     </div>`
                 ).join('');
             }
