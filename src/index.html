@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Swipe Predictor</title>
     <style>
+        html, body {
+            overflow: hidden;
+            height: 100%;
+        }
         body {
             font-family: system-ui, sans-serif;
             background: #eee;
@@ -22,7 +26,7 @@
             font-family: inherit;
         }
         #status { margin-top: 8px; font-size: 0.9em; }
-        #results { margin-top: 20px; }
+        #results { margin-top: 20px; height: 130px; }
         #explanation { margin-top: 40px; }
         #explanation h2 { font-size: 1.2em; }
         .prediction {
@@ -41,7 +45,7 @@
 
     <div id="explanation">
         <h2>How it works</h2>
-        <p>Swipe typing lets you draw a path across the keyboard instead of tapping individual keys. This predictor matches your input pattern against a dictionary of 333k words.</p>
+        <p>Swipe typing lets you draw a path across the keyboard instead of tapping individual keys. This predictor matches your input pattern against a word list.</p>
         <p>Each word is converted to a path on a QWERTY keyboard layout. The algorithm uses <a href="https://en.wikipedia.org/wiki/Dynamic_time_warping">Dynamic Time Warping (DTW)</a> to measure how similar your swipe path is to each word's path. Words with similar paths get low scores.</p>
         <p>Word frequency from a corpus is used as a tiebreaker—common words rank higher when paths are equally close.</p>
         <p>Try these swipe patterns:</p>
@@ -49,6 +53,17 @@
             <li><em>asdfghjkl;poiuygfdsascsa</em> → alpaca</li>
             <li><em>poiuytrernmngyuijnb</em> → penguin</li>
         </ul>
+
+        <h2>Optimizations</h2>
+        <p>We needed to run DTW—an O(n×m) algorithm—against a word list in milliseconds, entirely client-side. The engine is written in Rust and compiled to WebAssembly. Key optimizations:</p>
+        <ul>
+            <li><strong>Sakoe-Chiba band</strong> — constrain DTW to a diagonal band, reducing complexity to O(n×w)</li>
+            <li><strong>Early termination</strong> — prune candidates mid-computation if partial score exceeds current best</li>
+            <li><strong>O(n) space</strong> — keep only two rows of the DTW matrix in memory</li>
+            <li><strong>First/last character filtering</strong> — only consider words matching the first character; penalize last character mismatches</li>
+        </ul>
+
+        <p><a href="https://github.com/ZimengXiong/swipePredictor">Source</a></p>
     </div>
 
     <script type="module">
