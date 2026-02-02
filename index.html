@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swipe Predictor</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            max-width: 600px;
+            margin: 100px auto;
+            padding: 0 20px;
+            color: #333;
+        }
+        h1 {
+            font-weight: normal;
+            margin-bottom: 30px;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            font-size: 18px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        input:focus {
+            outline: none;
+            border-color: #666;
+        }
+        #status {
+            margin-top: 10px;
+            color: #666;
+            font-size: 14px;
+        }
+        #results {
+            margin-top: 30px;
+        }
+        .prediction {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .prediction:last-child {
+            border-bottom: none;
+        }
+        .word {
+            font-weight: 500;
+        }
+        .score {
+            color: #888;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Swipe Predictor</h1>
+    <input type="text" id="swipe" placeholder="Type a swipe pattern..." disabled>
+    <div id="status">Loading...</div>
+    <div id="results"></div>
+
+    <script type="module">
+        import init, { init_dictionary, predict_wasm } from './pkg/swipe_predictor_rs.js';
+
+        const input = document.getElementById('swipe');
+        const status = document.getElementById('status');
+        const results = document.getElementById('results');
+
+        async function main() {
+            status.textContent = 'Loading WASM module...';
+            await init();
+
+            status.textContent = 'Fetching dictionary...';
+            const [wordsRes, freqRes] = await Promise.all([
+                fetch('words.txt'),
+                fetch('word_freq.txt')
+            ]);
+
+            const wordsText = await wordsRes.text();
+            const freqText = await freqRes.text();
+
+            status.textContent = 'Initializing dictionary...';
+            init_dictionary(wordsText, freqText);
+
+            status.textContent = 'Ready';
+            input.disabled = false;
+            input.focus();
+
+            input.addEventListener('input', () => {
+                const swipe = input.value.trim().toLowerCase();
+                if (!swipe) {
+                    results.innerHTML = '';
+                    return;
+                }
+
+                const json = predict_wasm(swipe, 10);
+                const predictions = JSON.parse(json);
+
+                results.innerHTML = predictions.map(p => `
+                    <div class="prediction">
+                        <span class="word">${p.word}</span>
+                        <span class="score">${p.score.toFixed(3)}</span>
+                    </div>
+                `).join('');
+            });
+        }
+
+        main().catch(err => {
+            status.textContent = 'Error: ' + err.message;
+            console.error(err);
+        });
+    </script>
+</body>
+</html>

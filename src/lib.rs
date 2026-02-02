@@ -1,4 +1,7 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
+use wasm_bindgen::prelude::*;
+use serde::Serialize;
 
 #[derive(Clone, Copy)]
 pub struct Point {
@@ -143,4 +146,140 @@ pub fn dtw_distance(s: &[Point], t: &[Point]) -> f64 {
     }
 
     dtw[n][m]
+}
+
+// ============== WASM Exports ==============
+
+const WORDS_TEXT: &str = include_str!("../words.txt");
+const FREQ_TEXT: &str = include_str!("../word_freq.txt");
+
+#[derive(Serialize)]
+struct Prediction {
+    word: String,
+    score: f64,
+    freq: f64,
+}
+
+struct Dictionary {
+    words: Vec<String>,
+    freq: HashMap<String, f64>,
+}
+
+thread_local! {
+    static DICTIONARY: RefCell<Option<Dictionary>> = RefCell::new(None);
+}
+
+fn ensure_dictionary() {
+    DICTIONARY.with(|d| {
+        if d.borrow().is_some() {
+            return;
+        }
+
+        let words: Vec<String> = WORDS_TEXT
+            .lines()
+            .map(|l| l.trim().to_lowercase())
+            .filter(|l| !l.is_empty())
+            .collect();
+
+        let mut freq_map = HashMap::new();
+        let mut max_freq: f64 = 0.0;
+
+        let lines: Vec<&str> = FREQ_TEXT.lines().collect();
+        for line in &lines {
+            if let Some((_, count_str)) = line.split_once('\t') {
+                if let Ok(count) = count_str.parse::<f64>() {
+                    max_freq = max_freq.max(count);
+                }
+            }
+        }
+
+        for line in &lines {
+            if let Some((word, count_str)) = line.split_once('\t') {
+                if let Ok(count) = count_str.parse::<f64>() {
+                    let log_freq = (count.ln() - 1.0) / max_freq.ln();
+                    freq_map.insert(word.to_lowercase(), log_freq.max(0.0));
+                }
+            }
+        }
+
+        *d.borrow_mut() = Some(Dictionary { words, freq: freq_map });
+    });
+}
+
+#[wasm_bindgen]
+pub fn predict_wasm(swipe_input: &str, limit: usize) -> String {
+    ensure_dictionary();
+    let margin = 0.1;
+
+    DICTIONARY.with(|d| {
+        let dict = d.borrow();
+        let dict = dict.as_ref().unwrap();
+
+        let layout = get_keyboard_layout();
+        let raw_input_path = get_word_path(swipe_input, &layout);
+
+        if raw_input_path.is_empty() {
+            return "[]".to_string();
+        }
+
+        let input_path = simplify_path(&raw_input_path);
+        let input_len = input_path.len() as f64;
+
+        let first_char = match swipe_input.chars().next() {
+            Some(c) => c,
+            None => return "[]".to_string(),
+        };
+        let last_char = swipe_input.chars().last().unwrap();
+        let last_char_pt = layout.get(&last_char).cloned().unwrap_or(Point { x: 0.0, y: 0.0 });
+
+        let window = (input_path.len() / 2).max(10);
+        let mut best_score = f64::INFINITY;
+
+        let mut candidates: Vec<(String, f64, f64)> = dict.words
+            .iter()
+            .filter(|w| !w.is_empty() && w.starts_with(first_char))
+            .filter_map(|w| {
+                let word_last_char = w.chars().last().unwrap();
+                let mut end_penalty = 0.0;
+
+                if word_last_char != last_char {
+                    if let Some(word_last_pt) = layout.get(&word_last_char) {
+                        end_penalty = euclidean_dist(&last_char_pt, word_last_pt) * 5.0;
+                    } else {
+                        end_penalty = 50.0;
+                    }
+                }
+
+                let cutoff = best_score * input_len;
+                let word_path = get_word_path(w, &layout);
+                let dist = dtw_distance_fast(&input_path, &word_path, window, cutoff);
+
+                if dist == f64::INFINITY {
+                    return None;
+                }
+
+                let score = (dist + end_penalty) / input_len;
+                if score < best_score {
+                    best_score = score;
+                }
+
+                let word_freq = *dict.freq.get(w.as_str()).unwrap_or(&0.0);
+                Some((w.clone(), score, word_freq))
+            })
+            .collect();
+
+        candidates.sort_by(|a, b| {
+            let combined_a = a.1 - (a.2 * margin);
+            let combined_b = b.1 - (b.2 * margin);
+            combined_a.partial_cmp(&combined_b).unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        let predictions: Vec<Prediction> = candidates
+            .into_iter()
+            .take(limit)
+            .map(|(word, score, freq)| Prediction { word, score, freq })
+            .collect();
+
+        serde_json::to_string(&predictions).unwrap_or_else(|_| "[]".to_string())
+    })
 }
