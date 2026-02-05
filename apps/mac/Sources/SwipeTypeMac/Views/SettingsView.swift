@@ -21,6 +21,7 @@ struct SettingsView: View {
     @AppStorage(AppSettings.Keys.playSwipeAnimation) private var playSwipeAnimation = AppSettings.Defaults.playSwipeAnimation
 
     @State private var isShowingResetConfirmation = false
+    @State private var hasAccessibilityPermission = PermissionManager.shared.checkAccessibilityPermission()
 
     private var appVersionText: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
@@ -72,266 +73,218 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 0) {
-            Form {
-                Section {
-                    Picker("Toggle overlay", selection: $hotkeyPresetRaw) {
-                        ForEach(AppSettings.ToggleHotkeyPreset.allCases) { preset in
-                            Text(preset.displayName).tag(preset.rawValue)
-                        }
-                    }
-                    .pickerStyle(.menu)
-
-                    if hotkeyPreset == .none {
-                        Text("Hotkey disabled. Use the menu bar icon to toggle the overlay.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    if hotkeyPreset == .custom {
-                        LabeledContent("Key") {
-                            HStack {
-                                Spacer()
-                                Picker("Key", selection: $customToggleHotkeyKeyCode) {
-                                    ForEach(AppSettings.customHotkeyKeyOptions) { option in
-                                        Text(option.displayName).tag(option.keyCode)
+            HStack(alignment: .top, spacing: 24) {
+                // Column 1: Behavior
+                VStack(alignment: .leading, spacing: 20) {
+                    settingsSection(title: "Hotkey", icon: "keyboard") {
+                        VStack(alignment: .leading, spacing: 14) {
+                            LabeledContent("Shortcut") {
+                                Picker("Shortcut", selection: $hotkeyPresetRaw) {
+                                    ForEach(AppSettings.ToggleHotkeyPreset.allCases) { preset in
+                                        Text(preset.displayName).tag(preset.rawValue)
                                     }
                                 }
                                 .labelsHidden()
                                 .pickerStyle(.menu)
+                                .frame(maxWidth: .infinity, alignment: .trailing)
                             }
-                        }
 
-                        LabeledContent("Modifiers") {
-                            HStack {
-                                Spacer()
-                                HStack(spacing: 4) {
-                                    ModifierToggle(symbol: "⌃", name: "Control", isOn: modifierBinding(AppSettings.ModifierBits.control))
-                                    ModifierToggle(symbol: "⌥", name: "Option", isOn: modifierBinding(AppSettings.ModifierBits.option))
-                                    ModifierToggle(symbol: "⇧", name: "Shift", isOn: modifierBinding(AppSettings.ModifierBits.shift))
-                                    ModifierToggle(symbol: "⌘", name: "Command", isOn: modifierBinding(AppSettings.ModifierBits.command))
+                            if hotkeyPreset == .none {
+                                Text("Hotkey disabled. Use the menu bar icon.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.leading, 2)
+                            }
+
+                            if hotkeyPreset == .custom {
+                                VStack(spacing: 10) {
+                                                                LabeledContent("Key") {
+                                                                    Picker("Key", selection: $customToggleHotkeyKeyCode) {
+                                                                        ForEach(AppSettings.customHotkeyKeyOptions) { option in
+                                                                            Text(option.displayName).tag(option.keyCode)
+                                                                        }
+                                                                    }
+                                                                    .labelsHidden()
+                                                                    .pickerStyle(.menu)
+                                                                    .frame(maxWidth: .infinity, alignment: .trailing)
+                                                                }
+                                    
+                                                                LabeledContent("Modifiers") {
+                                                                    HStack(spacing: 4) {
+                                                                        ModifierToggle(symbol: "⌃", name: "Control", isOn: modifierBinding(AppSettings.ModifierBits.control))
+                                                                        ModifierToggle(symbol: "⌥", name: "Option", isOn: modifierBinding(AppSettings.ModifierBits.option))
+                                                                        ModifierToggle(symbol: "⇧", name: "Shift", isOn: modifierBinding(AppSettings.ModifierBits.shift))
+                                                                        ModifierToggle(symbol: "⌘", name: "Command", isOn: modifierBinding(AppSettings.ModifierBits.command))
+                                                                    }
+                                                                    .frame(maxWidth: .infinity, alignment: .trailing)
+                                                                }
+                                                                        LabeledContent("Preview") {
+                                        Text(AppSettings.hotkeyHintSymbol(keyCode: customToggleHotkeyKeyCode, modifierMask: customToggleHotkeyModifiers))
+                                            .font(.system(.body, design: .monospaced))
+                                            .fontWeight(.semibold)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 2)
+                                            .background(Color.primary.opacity(0.05))
+                                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                                            .frame(maxWidth: .infinity, alignment: .trailing)
+                                    }
                                 }
+                                .padding(10)
+                                .background(Color.primary.opacity(0.03))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                            }
+                            
+                            Divider().padding(.vertical, 4)
+                            
+                            Toggle("Show menu bar icon", isOn: $showMenuBarItem)
+                        }
+                    }
+
+                    settingsSection(title: "Typing", icon: "square.and.pencil") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            ToggleGroup(title: "Auto-commit after pause", isOn: $autoCommitAfterPause, description: "Inserts prediction when starting a new word.")
+                            ToggleGroup(title: "Require pause before select", isOn: $requirePauseBeforeCommit, description: "Prevents accidental selection while swiping.")
+                            ToggleGroup(title: "Add space after word", isOn: $insertTrailingSpace, description: "Appends a space after selection.")
+                            ToggleGroup(title: "Play swipe animation", isOn: $playSwipeAnimation, description: "Replays path on overlay keyboard.")
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                LabeledContent("Pause duration") {
+                                    HStack(spacing: 8) {
+                                        Slider(value: $debounceDelaySeconds, in: 0.15...1.2, step: 0.05)
+                                            .frame(width: 120)
+                                        Text("\(debounceDelaySeconds, specifier: "%.2f")s")
+                                            .font(.system(size: 10, design: .monospaced))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                Text("Wait time before committing or animating.")
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(.secondary.opacity(0.8))
                             }
                         }
-
-                        LabeledContent("Preview") {
-                            Text(AppSettings.hotkeyHintSymbol(keyCode: customToggleHotkeyKeyCode, modifierMask: customToggleHotkeyModifiers))
-                                .font(.system(.body, design: .monospaced))
-                                .fontWeight(.semibold)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 2)
-                                .background(Color.primary.opacity(0.05))
-                                .clipShape(RoundedRectangle(cornerRadius: 4))
-                        }
-
-                        if !isCustomHotkeyValid {
-                            Text("Select at least one modifier.")
-                                .font(.caption)
-                                .foregroundStyle(.red)
-                        }
                     }
-                } header: {
-                    Label("Hotkey", systemImage: "keyboard")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                                                HStack {
+                                                    Text("Accessibility")
+                                                        .font(.subheadline.bold())
+                                                        .foregroundColor(.white) // Always white
+                        
+                                                    Image(systemName: hasAccessibilityPermission ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                                        .foregroundColor(hasAccessibilityPermission ? .green : .red) // Green for granted, red for not granted
+                        
+                                                    Spacer()
+                        
+                                                    if !hasAccessibilityPermission {
+                                                        Button("Open Settings") { // New button text
+                                                            PermissionManager.shared.openAccessibilitySettings() // Direct call
+                                                        }
+                                                        .buttonStyle(.bordered)
+                                                        .controlSize(.small)
+                                                    }
+                                                }
+                                                .padding(12)
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                                .background(Color.primary.opacity(0.03))
+                                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                }
+                .frame(width: 360)
+                .onAppear {
+                    PermissionManager.shared.startMonitoringPermission { granted in
+                        hasAccessibilityPermission = granted
+                    }
                 }
 
-                Section {
-                    Toggle("Show menu bar icon", isOn: $showMenuBarItem)
-                        .disabled(isMenuBarRequired)
-
-                    if isMenuBarRequired {
-                        Text("Menu bar icon is required when no hotkey is configured.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                } header: {
-                    Label("Menu Bar", systemImage: "menubar.rectangle")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                }
-
-                Section {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Toggle("Auto-commit after pause", isOn: $autoCommitAfterPause)
-                        Text("Automatically inserts the top prediction when you start typing a new word.")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary.opacity(0.8))
-                    }
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Toggle("Require pause before Enter/1-5", isOn: $requirePauseBeforeCommit)
-                        Text("Prevents accidental selection by requiring a short pause after finishing a swipe.")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary.opacity(0.8))
-                    }
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Toggle("Add space after committed word", isOn: $insertTrailingSpace)
-                        Text("Appends a space character whenever a word is selected or auto-committed.")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary.opacity(0.8))
-                    }
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Toggle("Play swipe animation after pause", isOn: $playSwipeAnimation)
-                        Text("Replays your swipe path on the overlay keyboard for visual feedback.")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary.opacity(0.8))
-                    }
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        LabeledContent("Pause duration") {
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Slider(value: $debounceDelaySeconds, in: 0.15...1.2, step: 0.05)
-                                    .frame(width: 180)
-                                Text("\(debounceDelaySeconds, specifier: "%.2f")s")
-                                    .font(.system(size: 9, design: .monospaced))
+                // Column 2: Appearance & About
+                VStack(alignment: .leading, spacing: 20) {
+                    settingsSection(title: "Overlay", icon: "macwindow") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Toggle("Use transparency", isOn: $useTransparency)
+                            
+                            HStack {
+                                Text("Dim")
+                                Spacer()
+                                Slider(value: $overlayBackgroundOpacity, in: 0.0...0.9, step: 0.05)
+                                    .frame(width: 120)
+                                Text("\(Int(overlayBackgroundOpacity * 100))%")
+                                    .font(.system(size: 10, design: .monospaced))
                                     .foregroundStyle(.secondary)
                             }
-                        }
-                        Text("How long to wait after you stop typing before committing or playing the animation.")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary.opacity(0.8))
-                    }
-                } header: {
-                    Label("Typing", systemImage: "square.and.pencil")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                }
-
-                Section {
-                    VStack(alignment: .leading, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Toggle("Use transparency", isOn: $useTransparency)
-                            Text("Enables the native macOS blurred background effect.")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.secondary.opacity(0.8))
-                        }
-
-                        HStack {
-                            Text(useTransparency ? "Background dim" : "Background opacity")
-                            Spacer()
-                            Slider(value: $overlayBackgroundOpacity, in: 0.0...0.9, step: 0.05)
-                                .frame(width: 160)
-                            Text("\(Int(overlayBackgroundOpacity * 100))%")
-                                .font(.system(size: 10, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 35, alignment: .trailing)
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Appearance Preview")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(.secondary)
                             
-                            // The Actual Mock Overlay (Miniature)
-                            VStack(spacing: 6) {
-                                // Predictions
-                                VStack(spacing: 3) {
-                                    MockRow(text: "alpaca", primary: true)
-                                    MockRow(text: "penguin", primary: false)
-                                }
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Appearance Preview")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(.secondary)
                                 
-                                // Stats
-                                HStack {
-                                    Rectangle().fill(.white.opacity(0.3)).frame(width: 45, height: 3)
-                                    Spacer()
-                                    Rectangle().fill(.white.opacity(0.3)).frame(width: 30, height: 3)
-                                }
-                                .padding(.horizontal, 6)
-                                
-                                // Keyboard mock
-                                MockKeyboardView(input: "asdfghjklppokjhgfdsaxccsa")
-                                    .frame(height: 80)
-                                    .padding(.top, 4)
-                                
-                                // Footer
-                                Capsule().fill(.white.opacity(0.2)).frame(width: 60, height: 3)
-                            }
-                            .padding(12)
-                            .frame(width: 180)
-                            .background(
-                                ZStack {
-                                    if useTransparency {
-                                        // Simple representation of transparency over form background
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(.gray.opacity(0.12))
-                                        
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(.black.opacity(overlayBackgroundOpacity))
-                                    } else {
-                                        // Fully opaque background mock
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(Color(white: 0.25 * (1.0 - overlayBackgroundOpacity / 0.9)))
+                                // The Miniature Mock Overlay
+                                VStack(spacing: 2) {
+                                    // Predictions
+                                    VStack(spacing: 3) {
+                                        MockRow(text: "alpaca", primary: true)
+                                        MockRow(text: "penguin", primary: false)
                                     }
                                     
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
+                                    // Stats
+                                    HStack {
+                                        Rectangle().fill(.white.opacity(0.3)).frame(width: 45, height: 2)
+                                        Spacer()
+                                        Rectangle().fill(.white.opacity(0.3)).frame(width: 30, height: 2)
+                                    }
+                                    .padding(.horizontal, 6)
+                                    .padding(.top, 2)
+                                    
+                                    // Keyboard mock
+                                    MockKeyboardView(input: "asdfghjklppokjhgfdsaxccsa")
+                                        .frame(height: 52)
+                                    
+                                    // Footer
+                                    Capsule().fill(.white.opacity(0.2)).frame(width: 60, height: 3)
+                                        .padding(.bottom, 4)
                                 }
-                            )
-                            .shadow(color: .black.opacity(0.25), radius: 12, x: 0, y: 6)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                } header: {
-                    Label("Overlay", systemImage: "macwindow")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                }
-
-                Section {
-                    Button {
-                        PermissionManager.shared.requestAccessibilityPermission()
-                    } label: {
-                        Label("Request Accessibility Permission", systemImage: "hand.raised.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
-                } header: {
-                    Label("Permissions", systemImage: "lock.shield")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                }
-
-                Section {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(spacing: 16) {
-                            Image(nsImage: NSApp.applicationIconImage)
-                                .resizable()
-                                .frame(width: 48, height: 48)
-                            
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("SwipeType")
-                                    .font(.headline)
-                                if !appVersionText.isEmpty {
-                                    Text(appVersionText)
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                }
+                                .padding(12)
+                                .frame(width: 180)
+                                .background(
+                                    ZStack {
+                                        if useTransparency {
+                                            RoundedRectangle(cornerRadius: 12).fill(.gray.opacity(0.12))
+                                            RoundedRectangle(cornerRadius: 12).fill(.black.opacity(overlayBackgroundOpacity))
+                                        } else {
+                                            RoundedRectangle(cornerRadius: 12).fill(Color(white: 0.25 * (1.0 - overlayBackgroundOpacity / 0.9)))
+                                        }
+                                        RoundedRectangle(cornerRadius: 12).stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
+                                    }
+                                )
+                                .shadow(color: .black.opacity(0.25), radius: 12, x: 0, y: 6)
                             }
                         }
-                        
-                        Text("A fast, lightweight swipe typing engine for macOS. Use swipe patterns to type words efficiently across any application.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .lineSpacing(2)
-                        
-                        Link(destination: URL(string: "https://github.com/ZimengXiong/swipeType")!) {
-                            Label("View on GitHub", systemImage: "link")
-                                .font(.caption.bold())
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
                     }
-                    .padding(.vertical, 8)
-                } header: {
-                    Label("About", systemImage: "info.circle")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
+
+                    settingsSection(title: "About", icon: "info.circle") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text("SwipeType").font(.headline)
+                                if !appVersionText.isEmpty {
+                                    Text(appVersionText).font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                            
+                            Text("A fast, lightweight swipe typing engine.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            
+                            Link(destination: URL(string: "https://github.com/ZimengXiong/swipeType")!) {
+                                Label("GitHub", systemImage: "link")
+                                    .font(.caption.bold())
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    }
                 }
+                .frame(width: 360)
             }
-            .formStyle(.grouped)
+            .padding(24)
 
             Button(role: .destructive) {
                 isShowingResetConfirmation = true
@@ -345,10 +298,10 @@ struct SettingsView: View {
             .tint(.red)
             .controlSize(.small)
             .clipShape(Capsule())
-            .padding(.trailing, 20)
-            .padding(.bottom, 20)
+            .padding(.trailing, 24)
+            .padding(.bottom, 24)
         }
-        .frame(width: 520)
+        .frame(width: 820)
         .fixedSize(horizontal: true, vertical: true)
         .onChange(of: hotkeyPresetRaw) { _ in
             if isMenuBarRequired {
@@ -371,6 +324,37 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This will restore default settings for hotkey, typing, and overlay.")
+        }
+    }
+
+    private func settingsSection<Content: View>(title: String, icon: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+                        Label(title, systemImage: icon)
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+            
+                                    VStack(alignment: .leading, spacing: 0) {
+            
+                                        content()
+            
+                                    }
+            
+                                    .padding(12)
+            
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+            
+                                    .background(Color.primary.opacity(0.03))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+        }
+    }
+
+    private func ToggleGroup(title: String, isOn: Binding<Bool>, description: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Toggle(title, isOn: isOn)
+            Text(description)
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary.opacity(0.8))
         }
     }
 }

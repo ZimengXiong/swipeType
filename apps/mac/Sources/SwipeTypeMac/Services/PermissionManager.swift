@@ -54,7 +54,7 @@ class PermissionManager {
     }
 
     /// Open System Settings to Accessibility pane
-    private func openAccessibilitySettings() {
+    func openAccessibilitySettings() {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
         NSWorkspace.shared.open(url)
     }

@@ -187,6 +187,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         // Let the window size itself to the content
         window.setContentSize(hosting.fittingSize)
+        window.contentMinSize = NSSize(width: 820, height: 400)
         window.center()
 
         return window
