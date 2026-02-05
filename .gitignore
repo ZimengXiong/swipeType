@@ -1,2 +1,4 @@
 /target
 *.xcodeproj
+apps/mac/BuildData/
+apps/mac/build/
