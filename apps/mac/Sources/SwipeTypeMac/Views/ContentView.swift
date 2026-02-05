@@ -16,6 +16,7 @@ enum OverlayLayout {
     static let predictionCount = 5
     static let predictionRowHeight: CGFloat = 28
     static let predictionRowSpacing: CGFloat = 5
+    static let statsHeight: CGFloat = 16
     static let keyboardHeight: CGFloat = 96
     static let footerHeight: CGFloat = 14
     static let containerCornerRadius: CGFloat = 14
@@ -32,9 +33,10 @@ enum OverlayLayout {
     static var panelHeight: CGFloat {
         verticalPaddingTop + verticalPaddingBottom
             + predictionAreaHeight
+            + statsHeight
             + keyboardHeight
             + footerHeight
-            + sectionSpacing * 2
+            + sectionSpacing * 3
     }
 
     static var panelSize: CGSize {
@@ -45,6 +47,7 @@ enum OverlayLayout {
 struct ContentView: View {
     @ObservedObject private var appState = AppState.shared
     @AppStorage(AppSettings.Keys.overlayBackgroundOpacity) private var backgroundOverlayOpacity = AppSettings.Defaults.overlayBackgroundOpacity
+    @State private var isShowingHelp = false
 
     private var backgroundOpacity: Double {
         min(max(backgroundOverlayOpacity, 0.0), 0.95)
@@ -83,6 +86,19 @@ struct ContentView: View {
                 alignment: .topLeading
             )
 
+            HStack {
+                Text("computed in \(String(format: "%.3f", appState.predictionTime))s")
+                Spacer()
+                if appState.actualWPM > 0 {
+                    Text("\(appState.actualWPM) actual WPM")
+                }
+            }
+            .font(.system(size: 10, weight: .medium, design: .monospaced))
+            .foregroundColor(.secondary.opacity(0.8))
+            .padding(.horizontal, 4)
+            .frame(height: OverlayLayout.statsHeight)
+            .opacity(appState.currentInput.isEmpty ? 0 : 1)
+
             KeyboardView(
                 input: appState.currentInput,
                 inputTimestamps: appState.inputTimestamps,
@@ -92,7 +108,7 @@ struct ContentView: View {
             )
                 .frame(maxWidth: .infinity)
 
-            FooterBar()
+            FooterBar(isShowingHelp: $isShowingHelp)
         }
         .padding(.horizontal, OverlayLayout.horizontalPadding)
         .padding(.top, OverlayLayout.verticalPaddingTop)
@@ -103,15 +119,26 @@ struct ContentView: View {
                 .overlay(Color.black.opacity(backgroundOpacity))
         )
         .clipShape(RoundedRectangle(cornerRadius: OverlayLayout.containerCornerRadius))
+        .overlay {
+            if isShowingHelp {
+                HelpView(isShowing: $isShowingHelp)
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            }
+        }
     }
 }
 
 private struct FooterBar: View {
+    @Binding var isShowingHelp: Bool
+
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
             FooterHint()
             Spacer(minLength: 0)
-            SettingsGlyphButton()
+            HStack(spacing: 4) {
+                HelpGlyphButton(isShowingHelp: $isShowingHelp)
+                SettingsGlyphButton()
+            }
         }
         .font(.system(size: 11, weight: .medium, design: .rounded))
         .foregroundStyle(.gray)
@@ -192,6 +219,25 @@ private struct FooterHint: View {
     }
 }
 
+private struct HelpGlyphButton: View {
+    @Binding var isShowingHelp: Bool
+
+    var body: some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                isShowingHelp.toggle()
+            }
+        } label: {
+            Image(systemName: isShowingHelp ? "questionmark.circle.fill" : "questionmark.circle")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(isShowingHelp ? .accentColor : .gray)
+                .frame(width: 18, height: OverlayLayout.footerHeight)
+        }
+        .buttonStyle(.plain)
+        .help("Help")
+    }
+}
+
 private struct SettingsGlyphButton: View {
     var body: some View {
         Button {
@@ -204,6 +250,72 @@ private struct SettingsGlyphButton: View {
         .buttonStyle(.plain)
         .help("Settings")
         .accessibilityLabel("Settings")
+    }
+}
+
+private struct HelpView: View {
+    @Binding var isShowing: Bool
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.4)
+                .onTapGesture {
+                    withAnimation(.easeIn(duration: 0.15)) {
+                        isShowing = false
+                    }
+                }
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("How to use SwipeType")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                    Spacer()
+                    Button {
+                        withAnimation(.easeIn(duration: 0.15)) {
+                            isShowing = false
+                        }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HelpSection(title: "Usage", icon: "keyboard") {
+                            Text("Draw patterns across the keys to type. To commit a word, you can **just start typing** the next pattern, press **Return**, or use **1-5** to select a specific prediction. SwipeType automatically handles spacing, and you can use **Backspace** to undo.")
+                        }
+                    }
+                }
+            }
+            .padding(16)
+            .frame(width: 300, height: 260)
+            .background(
+                VisualEffectView(material: .hudWindow, blendingMode: .withinWindow, emphasized: true)
+                    .overlay(Color(nsColor: .windowBackgroundColor).opacity(0.1))
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .shadow(radius: 20)
+        }
+    }
+}
+
+private struct HelpSection<Content: View>: View {
+    let title: String
+    let icon: String
+    let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label(title, systemImage: icon)
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundColor(.accentColor)
+            content()
+                .font(.system(size: 11))
+                .foregroundStyle(.primary.opacity(0.9))
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }
 
@@ -249,8 +361,8 @@ struct KeyboardView: View {
 
     private let idleLoopPadding: TimeInterval = 0.5
     private let sloppinessVariants = 5
-    private let sloppinessAmplitude: CGFloat = 2.8
-    private let animationSloppinessAmplitude: CGFloat = 4.8
+    private let sloppinessAmplitude: CGFloat = 1.0
+    private let animationSloppinessAmplitude: CGFloat = 1.5
 
     @State private var animationBaseTime: TimeInterval = 0
 
@@ -458,13 +570,13 @@ struct KeyboardView: View {
     }
 
     private func jitteredPath(points: [CGPoint], seed: UInt64, variant: Int, amplitude: CGFloat) -> [CGPoint] {
-        var state = seed ^ (UInt64(variant) &* 0x9E3779B97F4A7C15)
-        var jittered = points
-        for idx in jittered.indices {
-            let dx = (nextRandom(&state) - 0.5) * amplitude
-            let dy = (nextRandom(&state) - 0.5) * amplitude
-            jittered[idx].x += dx
-            jittered[idx].y += dy
+        var jittered: [CGPoint] = []
+        for (idx, point) in points.enumerated() {
+            // Stable seed per point to prevent path shifting
+            var pointState = UInt64(idx) &* 0x12345678 ^ UInt64(variant) &* 0x87654321
+            let dx = (nextRandom(&pointState) - 0.5) * amplitude
+            let dy = (nextRandom(&pointState) - 0.5) * amplitude
+            jittered.append(CGPoint(x: point.x + dx, y: point.y + dy))
         }
         return jittered
     }

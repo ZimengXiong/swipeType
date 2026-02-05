@@ -169,23 +169,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @MainActor
     private func makeSettingsWindow() -> NSWindow {
-        let rect = NSRect(x: 0, y: 0, width: 560, height: 500)
         let window = NSWindow(
-            contentRect: rect,
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            contentRect: .zero,
+            styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
         )
         window.title = "Settings"
         window.isReleasedWhenClosed = false
         window.setFrameAutosaveName("SwipeType.SettingsWindow")
-        window.center()
         window.collectionBehavior = [.moveToActiveSpace]
         window.delegate = self
 
         let hosting = NSHostingView(rootView: SettingsView())
-        hosting.autoresizingMask = [.width, .height]
+        hosting.translatesAutoresizingMaskIntoConstraints = false
         window.contentView = hosting
+        
+        // Let the window size itself to the content
+        window.setContentSize(hosting.fittingSize)
+        window.center()
 
         return window
     }

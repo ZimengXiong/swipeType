@@ -52,6 +52,12 @@
         <div id="keyboard"></div>
         <canvas id="path-canvas"></canvas>
     </div>
+    <details style="margin-top: 12px; font-size: 0.85em; color: #555; cursor: pointer;">
+        <summary>Help & Usage</summary>
+        <p style="margin-top: 8px; line-height: 1.4;">
+            Draw patterns across the keyboard to type. SwipeType predicts words based on your path and automatically commits choices as you continue typing. Use <strong>1-5</strong> to select specific predictions and <strong>Backspace</strong> to undo words.
+        </p>
+    </details>
     <div id="explanation">
         <p>Swipe typing lets you draw a path across the keyboard instead of tapping individual keys. This predictor matches your input pattern against a word list.</p>
         <p>Each word is converted to a path on a QWERTY keyboard layout. The algorithm uses <a href="https://en.wikipedia.org/wiki/Dynamic_time_warping">Dynamic Time Warping (DTW)</a> to measure how similar your swipe path is to each word's path. Words with similar paths get low scores.</p>
@@ -96,8 +102,8 @@
         const KEY_HEIGHT = 28.0;
         const keyElements = {};
         const SLOPPINESS_VARIANTS = 5;
-        const SLOPPINESS_AMPLITUDE = 0.8;
-        const ANIMATION_SLOPPINESS_AMPLITUDE = 1.2;
+        const SLOPPINESS_AMPLITUDE = 1.2;
+        const ANIMATION_SLOPPINESS_AMPLITUDE = 1.6;
         const IDLE_LOOP_PADDING = 0.5;
 
         function renderKeyboard() {
@@ -153,16 +159,20 @@
         }
 
         function jitteredPath(points, seed, variant, amplitude) {
-            let state = (seed ^ (BigInt(variant) * 0x9E3779B97F4A7C15n)) & 0xFFFFFFFFFFFFFFFFn;
-            const jittered = points.map(p => [p[0], p[1]]);
-            for (let i = 0; i < jittered.length; i++) {
-                let rnd;
-                ({ value: rnd, state } = nextRandom(state));
-                const dx = (rnd - 0.5) * amplitude;
-                ({ value: rnd, state } = nextRandom(state));
-                const dy = (rnd - 0.5) * amplitude;
-                jittered[i][0] += dx / KEY_SCALE_X; // Scale jitter to coordinate space
-                jittered[i][1] += dy / KEY_SCALE_Y;
+            const jittered = [];
+            for (let i = 0; i < points.length; i++) {
+                // Stable seed for each point based on its index and the variant
+                // this prevents the entire path from shifting when new characters are added
+                let state = (BigInt(i) * 0x12345678n) ^ (BigInt(variant) * 0x87654321n);
+                state &= 0xFFFFFFFFFFFFFFFFn;
+                
+                let rndX, rndY;
+                ({ value: rndX, state } = nextRandom(state));
+                ({ value: rndY, state } = nextRandom(state));
+                
+                const dx = (rndX - 0.5) * amplitude;
+                const dy = (rndY - 0.5) * amplitude;
+                jittered.push([points[i][0] + dx / KEY_SCALE_X, points[i][1] + dy / KEY_SCALE_Y]);
             }
             return jittered;
         }
@@ -174,27 +184,25 @@
                 (y * KEY_SCALE_Y + KEY_HEIGHT / 2) / 100 * rect.height
             ];
 
-            const p0 = toPixel(points[0]);
-            ctx.moveTo(p0[0], p0[1]);
+            const p = points.map(toPixel);
+            ctx.moveTo(p[0][0], p[0][1]);
 
-            if (points.length === 2) {
-                const p1 = toPixel(points[1]);
-                ctx.lineTo(p1[0], p1[1]);
-            } else if (points.length > 2) {
-                const p1 = toPixel(points[1]);
-                const firstMidX = (p0[0] + p1[0]) * 0.5;
-                const firstMidY = (p0[1] + p1[1]) * 0.5;
-                ctx.lineTo(firstMidX, firstMidY);
+            if (p.length === 2) {
+                ctx.lineTo(p[1][0], p[1][1]);
+            } else if (p.length > 2) {
+                // Pin the first segment to its midpoint
+                const mid0X = (p[0][0] + p[1][0]) * 0.5;
+                const mid0Y = (p[0][1] + p[1][1]) * 0.5;
+                ctx.lineTo(mid0X, mid0Y);
 
-                for (let i = 1; i < points.length - 1; i++) {
-                    const curr = toPixel(points[i]);
-                    const next = toPixel(points[i + 1]);
+                for (let i = 1; i < p.length - 1; i++) {
+                    const curr = p[i];
+                    const next = p[i + 1];
                     const midX = (curr[0] + next[0]) * 0.5;
                     const midY = (curr[1] + next[1]) * 0.5;
                     ctx.quadraticCurveTo(curr[0], curr[1], midX, midY);
                 }
-                const last = toPixel(points[points.length - 1]);
-                ctx.lineTo(last[0], last[1]);
+                ctx.lineTo(p[p.length - 1][0], p[p.length - 1][1]);
             }
         }
 
@@ -408,7 +416,7 @@
             const sentenceContainer = document.getElementById('sentence-container');
             const sentenceDisplay = document.getElementById('sentence-display');
             const sentenceStats = document.getElementById('sentence-stats');
-            let pendingTimer = null, commitTimer = null, pendingRaf = null, predictionId = 0;
+            let pendingTimer = null, pendingRaf = null, predictionId = 0;
             const DEBOUNCE_THRESHOLD = 15, DEBOUNCE_DELAY = 450;
             let charTimestamps = [], lastInputLength = 0;
             let mode = 'word', sentenceState = 'idle', sentenceWords = [], wordHistory = [], awaitingPredictions = [], currentWordStartTime = null;
@@ -418,7 +426,6 @@
 
             function cancelPending() {
                 if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null; }
-                if (commitTimer) { clearTimeout(commitTimer); commitTimer = null; }
                 if (pendingRaf) { cancelAnimationFrame(pendingRaf); pendingRaf = null; }
                 predictionId++;
                 isPlaybackActive = false;
@@ -593,34 +600,17 @@
                 }
                 if (mode === 'sentence' && sentenceState === 'awaiting') { sentenceState = 'typing'; }
                 const debounceDelay = mode === 'sentence' ? DEBOUNCE_DELAY : (swipe.length < DEBOUNCE_THRESHOLD ? 100 : DEBOUNCE_DELAY);
-                const commitDelay = DEBOUNCE_DELAY;
-                if (debounceDelay === commitDelay) {
-                    pendingTimer = setTimeout(() => {
-                        if (id !== predictionId) return;
-                        isWordCommitted = true;
-                        drawStaticPath(input.value.trim(), [...charTimestamps], true);
-                        runPrediction(id);
-                        if (charTimestamps.length >= 2) {
-                            isPlaybackActive = true;
-                            playbackStartTime = performance.now();
-                            startAnimation();
-                        }
-                    }, debounceDelay);
-                } else {
-                    pendingTimer = setTimeout(() => {
-                        runPrediction(id);
-                    }, debounceDelay);
-                    commitTimer = setTimeout(() => {
-                        if (id !== predictionId) return;
-                        isWordCommitted = true;
-                        drawStaticPath(input.value.trim(), [...charTimestamps], true);
-                        if (charTimestamps.length >= 2) {
-                            isPlaybackActive = true;
-                            playbackStartTime = performance.now();
-                            startAnimation();
-                        }
-                    }, commitDelay);
-                }
+                pendingTimer = setTimeout(() => {
+                    if (id !== predictionId) return;
+                    isWordCommitted = true;
+                    drawStaticPath(input.value.trim(), [...charTimestamps], true);
+                    runPrediction(id);
+                    if (charTimestamps.length >= 2) {
+                        isPlaybackActive = true;
+                        playbackStartTime = performance.now();
+                        startAnimation();
+                    }
+                }, debounceDelay);
                 if (mode === 'word' && swipe.length >= DEBOUNCE_THRESHOLD) {
                     status.innerHTML = '<span>Typing...</span><span class="typing-stats"></span>';
                 } else if (mode === 'sentence') {

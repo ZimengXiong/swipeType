@@ -19,7 +19,9 @@ final class AppState: ObservableObject {
     @Published var isPlaybackActive = false
     @Published var playbackStartTime: TimeInterval = 0
 
-    // Status
+    // Stats
+    @Published var predictionTime: TimeInterval = 0
+    @Published var actualWPM: Int = 0
     @Published var isDictionaryLoaded = false
     @Published var dictionaryWordCount = 0
 
@@ -125,12 +127,35 @@ final class AppState: ObservableObject {
         let thisRequest = requestId
         let input = currentInput
 
+        let startTime = Date().timeIntervalSinceReferenceDate
         DispatchQueue.global(qos: .userInitiated).async {
             let results = SwipeEngineBridge.shared.predict(input: input, limit: 5)
+            let endTime = Date().timeIntervalSinceReferenceDate
+            let duration = endTime - startTime
+
             DispatchQueue.main.async { [weak self] in
                 guard let self = self, self.requestId == thisRequest else { return }
                 self.predictions = results
+                self.predictionTime = duration
+                self.updateWPM()
             }
+        }
+    }
+
+    private func updateWPM() {
+        guard let first = predictions.first,
+              let start = inputTimestamps.first,
+              let end = inputTimestamps.last else {
+            actualWPM = 0
+            return
+        }
+
+        let durationMs = (end - start) * 1000
+        let minutes = durationMs / 60000.0
+        if minutes > 0 {
+            actualWPM = Int(round((Double(first.word.count) / 5.0) / minutes))
+        } else {
+            actualWPM = 0
         }
     }
 }
