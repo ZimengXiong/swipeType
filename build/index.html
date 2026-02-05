@@ -12,9 +12,9 @@
         #status { margin-top: 8px; font-size: 0.9em; display: flex; justify-content: space-between; }
         #status .typing-stats { text-align: right; }
         #results { margin-top: 8px; margin-bottom: 16px; }
-        #keyboard-container { position: relative; margin-top: 16px; margin-bottom: 16px; width: 100%; aspect-ratio: 10 / 3; }
+        #keyboard-container { position: relative; margin-top: 16px; margin-bottom: 16px; width: 100%; aspect-ratio: 13 / 3.2; }
         #keyboard { position: absolute; width: 100%; height: 100%; }
-        .key { position: absolute; width: 7%; height: 30%; background: #fff; border: 1px solid #ccc; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 0.9em; text-transform: uppercase; box-sizing: border-box; transition: background-color 0.15s; }
+        .key { position: absolute; width: 7%; height: 28%; background: #fff; border: 1px solid #ccc; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 0.9em; text-transform: uppercase; box-sizing: border-box; transition: background-color 0.15s; }
         .key.active { background: #a8d4ff; }
         #path-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
         #explanation { margin-top: 16px; }
@@ -90,11 +90,14 @@
             'z': [1.5, 2], 'x': [2.5, 2], 'c': [3.5, 2], 'v': [4.5, 2], 'b': [5.5, 2],
             'n': [6.5, 2], 'm': [7.5, 2], ',': [8.5, 2], '.': [9.5, 2], '/': [10.5, 2]
         };
-        const KEY_SCALE = 7.5;
+        const KEY_SCALE_X = 7.7;
+        const KEY_SCALE_Y = 33.33;
+        const KEY_WIDTH = 7.0;
+        const KEY_HEIGHT = 28.0;
         const keyElements = {};
         const SLOPPINESS_VARIANTS = 5;
-        const SLOPPINESS_AMPLITUDE = 2.8;
-        const ANIMATION_SLOPPINESS_AMPLITUDE = 4.8;
+        const SLOPPINESS_AMPLITUDE = 0.8;
+        const ANIMATION_SLOPPINESS_AMPLITUDE = 1.2;
         const IDLE_LOOP_PADDING = 0.5;
 
         function renderKeyboard() {
@@ -103,8 +106,8 @@
                 const key = document.createElement('div');
                 key.className = 'key';
                 key.textContent = char;
-                key.style.left = `${x * KEY_SCALE}%`;
-                key.style.top = `${y * 33.33}%`;
+                key.style.left = `${x * KEY_SCALE_X}%`;
+                key.style.top = `${y * KEY_SCALE_Y}%`;
                 key.dataset.char = char;
                 keyboard.appendChild(key);
                 keyElements[char.toLowerCase()] = key;
@@ -140,48 +143,59 @@
                 hash ^= BigInt(byte);
                 hash = (hash * 1099511628211n) & 0xFFFFFFFFFFFFFFFFn;
             }
-            return Number(hash);
+            return hash;
         }
 
         function nextRandom(state) {
-            state = (state * 6364136223846793005n + 1n) & 0xFFFFFFFFFFFFFFFFn;
-            return Number((state >> 33n) / (1n << 31n));
+            const next = (state * 6364136223846793005n + 1n) & 0xFFFFFFFFFFFFFFFFn;
+            const value = Number(next >> 33n) / (2 ** 31);
+            return { value, state: next };
         }
 
         function jitteredPath(points, seed, variant, amplitude) {
-            let state = (seed ^ (variant * 0x9E3779B97F4A7C15n)) & 0xFFFFFFFFFFFFFFFFn;
+            let state = (seed ^ (BigInt(variant) * 0x9E3779B97F4A7C15n)) & 0xFFFFFFFFFFFFFFFFn;
             const jittered = points.map(p => [p[0], p[1]]);
             for (let i = 0; i < jittered.length; i++) {
-                const dx = (nextRandom(state) - 0.5) * amplitude;
-                const dy = (nextRandom(state) - 0.5) * amplitude;
-                jittered[i][0] += dx;
-                jittered[i][1] += dy;
+                let rnd;
+                ({ value: rnd, state } = nextRandom(state));
+                const dx = (rnd - 0.5) * amplitude;
+                ({ value: rnd, state } = nextRandom(state));
+                const dy = (rnd - 0.5) * amplitude;
+                jittered[i][0] += dx / KEY_SCALE_X; // Scale jitter to coordinate space
+                jittered[i][1] += dy / KEY_SCALE_Y;
             }
             return jittered;
         }
 
-        function smoothPath(points) {
-            const path = [];
-            if (points.length < 1) return path;
-            path.push([points[0][0], points[0][1]]);
+        function drawPath(ctx, points, rect) {
+            if (points.length < 1) return;
+            const toPixel = ([x, y]) => [
+                (x * KEY_SCALE_X + KEY_WIDTH / 2) / 100 * rect.width,
+                (y * KEY_SCALE_Y + KEY_HEIGHT / 2) / 100 * rect.height
+            ];
+
+            const p0 = toPixel(points[0]);
+            ctx.moveTo(p0[0], p0[1]);
 
             if (points.length === 2) {
-                path.push([points[1][0], points[1][1]]);
-                return path;
+                const p1 = toPixel(points[1]);
+                ctx.lineTo(p1[0], p1[1]);
+            } else if (points.length > 2) {
+                const p1 = toPixel(points[1]);
+                const firstMidX = (p0[0] + p1[0]) * 0.5;
+                const firstMidY = (p0[1] + p1[1]) * 0.5;
+                ctx.lineTo(firstMidX, firstMidY);
+
+                for (let i = 1; i < points.length - 1; i++) {
+                    const curr = toPixel(points[i]);
+                    const next = toPixel(points[i + 1]);
+                    const midX = (curr[0] + next[0]) * 0.5;
+                    const midY = (curr[1] + next[1]) * 0.5;
+                    ctx.quadraticCurveTo(curr[0], curr[1], midX, midY);
+                }
+                const last = toPixel(points[points.length - 1]);
+                ctx.lineTo(last[0], last[1]);
             }
-
-            for (let i = 1; i < points.length - 1; i++) {
-                const [currX, currY] = points[i];
-                const [nextX, nextY] = points[i + 1];
-                const midX = (currX + nextX) * 0.5;
-                const midY = (currY + nextY) * 0.5;
-                path.push([midX, midY]);
-            }
-
-            const last = points[points.length - 1];
-            path.push([last[0], last[1]]);
-
-            return path;
         }
 
         function stopAnimation() {
@@ -208,109 +222,169 @@
                 }
             }
 
-            const toPixel = ([x, y]) => [(x * KEY_SCALE + 3.5) / 100 * rect.width, (y * 33.33 + 15) / 100 * rect.height];
             const showSimulation = isCommitted && currentPath.length >= 2;
 
             if (showSimulation) {
                 const seed = seedFrom(swipe);
                 for (let variant = 0; variant < SLOPPINESS_VARIANTS; variant++) {
                     const variantPath = jitteredPath(currentPath, seed, variant, SLOPPINESS_AMPLITUDE);
-                    const smoothed = smoothPath(variantPath);
-                    if (smoothed.length < 2) continue;
-
                     const opacity = 0.06 + (variant * 0.01);
                     ctx.beginPath();
                     ctx.strokeStyle = `rgba(50, 100, 200, ${opacity})`;
                     ctx.lineWidth = 1.7;
                     ctx.lineCap = 'round';
                     ctx.lineJoin = 'round';
-                    const [startX, startY] = toPixel(smoothed[0]);
-                    ctx.moveTo(startX, startY);
-                    for (let i = 1; i < smoothed.length; i++) {
-                        const [x, y] = toPixel(smoothed[i]);
-                        ctx.lineTo(x, y);
-                    }
+                    drawPath(ctx, variantPath, rect);
                     ctx.stroke();
                 }
+            }
+
+            if (currentPath.length >= 2) {
+                ctx.beginPath();
+                ctx.strokeStyle = `rgba(50, 100, 200, ${isCommitted ? 0.20 : 0.35})`;
+                ctx.lineWidth = isCommitted ? 2.4 : 3.0;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                drawPath(ctx, currentPath, rect);
+                ctx.stroke();
             }
         }
 
         function startAnimation() {
             if (currentPath.length < 2) return;
             const rect = canvas.parentElement.getBoundingClientRect();
-            animationVariant = seedFrom(currentChars.join('')) % SLOPPINESS_VARIANTS;
-            animationPathPoints = jitteredPath(currentPath, seedFrom(currentChars.join('')), animationVariant, ANIMATION_SLOPPINESS_AMPLITUDE);
+
+            const seed = seedFrom(currentChars.join(''));
+            animationVariant = Number(seed % BigInt(SLOPPINESS_VARIANTS));
+            animationPathPoints = jitteredPath(currentPath, seed, animationVariant, ANIMATION_SLOPPINESS_AMPLITUDE);
+
+            if (keyTimestamps.length >= 2) {
+                const n = keyTimestamps.length;
+                const rawDuration = keyTimestamps[n - 1] - keyTimestamps[0];
+                const desiredDurationMs = Math.min(1600, Math.max(700, n * 70));
+                const useSynthetic = !Number.isFinite(rawDuration) || rawDuration < 250 || rawDuration > 4000;
+                if (useSynthetic) {
+                    const step = desiredDurationMs / (n - 1);
+                    keyTimestamps = Array.from({ length: n }, (_, i) => i * step);
+                } else {
+                    const clamped = Math.min(2000, Math.max(700, rawDuration));
+                    const scale = rawDuration > 0 ? (clamped / rawDuration) : 1;
+                    const base = keyTimestamps[0];
+                    keyTimestamps = keyTimestamps.map(t => (t - base) * scale);
+                }
+            }
+
             animateLoop(rect);
         }
 
         function animateLoop(rect) {
-            const path = animationPathPoints;
-            const timestamps = keyTimestamps;
-            if (timestamps.length < 2 || path.length < 2) return;
-            const totalDuration = timestamps[timestamps.length - 1] - timestamps[0];
+            const points = animationPathPoints;
+            const timeSamples = keyTimestamps;
+            if (timeSamples.length < 2 || points.length < 2) return;
+            const totalDuration = timeSamples[timeSamples.length - 1] - timeSamples[0];
             const startTime = performance.now();
-            const toPixel = ([x, y]) => [(x * KEY_SCALE + 3.5) / 100 * rect.width, (y * 33.33 + 15) / 100 * rect.height];
-            let prevElapsed = -1;
+            const toPixel = ([x, y]) => [
+                (x * KEY_SCALE_X + KEY_WIDTH / 2) / 100 * rect.width,
+                (y * KEY_SCALE_Y + KEY_HEIGHT / 2) / 100 * rect.height
+            ];
+
+            function interpolatedPointAt(time, wrap) {
+                if (timeSamples.length < 2 || points.length < 2) return null;
+                const start = timeSamples[0];
+                const end = timeSamples[timeSamples.length - 1];
+                const total = end - start;
+                if (total <= 0) return null;
+
+                const target = wrap
+                    ? (function() {
+                        const normalized = (time - start) % total;
+                        const safeNorm = normalized < 0 ? normalized + total : normalized;
+                        return start + safeNorm;
+                    })()
+                    : (function() {
+                        if (time < start || time > end) return null;
+                        return time;
+                    })();
+                if (target === null) return null;
+
+                let segmentIdx = 0;
+                for (let i = 0; i < timeSamples.length - 1; i++) {
+                    if (target >= timeSamples[i] && target < timeSamples[i + 1]) {
+                        segmentIdx = i;
+                        break;
+                    } else if (target >= end) {
+                        segmentIdx = timeSamples.length - 2;
+                    }
+                }
+
+                const segStart = timeSamples[segmentIdx];
+                const segEnd = timeSamples[segmentIdx + 1];
+                const segDiff = segEnd - segStart;
+                const progress = Math.min(1, (target - segStart) / Math.max(segDiff, 0.001));
+                const startPoint = points[segmentIdx];
+                const endPoint = points[segmentIdx + 1];
+                const x = startPoint[0] + (endPoint[0] - startPoint[0]) * progress;
+                const y = startPoint[1] + (endPoint[1] - startPoint[1]) * progress;
+                return { point: [x, y], segmentIdx };
+            }
 
             function draw() {
                 ctx.clearRect(0, 0, rect.width, rect.height);
                 const loopDuration = totalDuration + IDLE_LOOP_PADDING * 1000;
                 const elapsed = (performance.now() - startTime) % loopDuration;
 
-                if (elapsed < prevElapsed) {
-                    prevElapsed = -1;
-                }
-                prevElapsed = elapsed;
+                if (elapsed >= totalDuration) {
+                    if (points.length > 0) {
+                        const lastIdx = points.length - 1;
+                        const [px, py] = toPixel(points[lastIdx]);
+                        
+                        ctx.beginPath();
+                        ctx.strokeStyle = 'rgba(50, 100, 200, 0.7)';
+                        ctx.lineWidth = 3.0;
+                        ctx.lineCap = 'round';
+                        ctx.lineJoin = 'round';
+                        drawPath(ctx, points, rect);
+                        ctx.stroke();
 
-                const currentTime = timestamps[0] + elapsed;
-                let segmentIdx = 0;
-                for (let i = 0; i < timestamps.length - 1; i++) {
-                    if (currentTime >= timestamps[i] && currentTime < timestamps[i + 1]) {
-                        segmentIdx = i;
-                        break;
-                    } else if (currentTime >= timestamps[timestamps.length - 1]) {
-                        segmentIdx = timestamps.length - 2;
+                        ctx.beginPath();
+                        ctx.fillStyle = 'rgba(50, 100, 200, 0.9)';
+                        ctx.arc(px, py, 6, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        if (currentChars.length > 0) {
+                            highlightKey(currentChars[currentChars.length - 1]);
+                        }
                     }
-                }
-
-                const segStart = timestamps[segmentIdx];
-                const segEnd = timestamps[segmentIdx + 1];
-                const progress = Math.min(1, (currentTime - segStart) / (segEnd - segStart));
-                const [x1, y1] = path[segmentIdx], [x2, y2] = path[segmentIdx + 1];
-                const currX = x1 + (x2 - x1) * progress;
-                const currY = y1 + (y2 - y1) * progress;
-
-                if (segmentIdx >= 0 && segmentIdx < currentChars.length) {
-                    highlightKey(currentChars[segmentIdx]);
-                }
-
-                const animPoints = [path[0]];
-                if (segmentIdx > 0) {
-                    for (let i = 1; i <= segmentIdx; i++) {
-                        animPoints.push([path[i][0], path[i][1]]);
+                } else {
+                    const currentTime = timeSamples[0] + elapsed;
+                    const result = interpolatedPointAt(currentTime, false);
+                    if (!result) {
+                        animationId = requestAnimationFrame(draw);
+                        return;
                     }
-                }
-                animPoints.push([currX, currY]);
 
-                const smoothed = smoothPath(animPoints);
-                ctx.beginPath();
-                ctx.strokeStyle = 'rgba(50, 100, 200, 0.7)';
-                ctx.lineWidth = 3.0;
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
-                const [startX, startY] = toPixel(smoothed[0]);
-                ctx.moveTo(startX, startY);
-                for (let i = 1; i < smoothed.length; i++) {
-                    const [x, y] = toPixel(smoothed[i]);
-                    ctx.lineTo(x, y);
-                }
-                ctx.stroke();
+                    const { point: currPoint, segmentIdx } = result;
+                    if (segmentIdx >= 0 && segmentIdx < currentChars.length) {
+                        highlightKey(currentChars[segmentIdx]);
+                    }
 
-                ctx.beginPath();
-                ctx.fillStyle = 'rgba(50, 100, 200, 0.9)';
-                const [pixelX, pixelY] = toPixel([currX, currY]);
-                ctx.arc(pixelX, pixelY, 6, 0, Math.PI * 2);
-                ctx.fill();
+                    const animPoints = points.slice(0, segmentIdx + 1);
+                    animPoints.push(currPoint);
+
+                    ctx.beginPath();
+                    ctx.strokeStyle = 'rgba(50, 100, 200, 0.7)';
+                    ctx.lineWidth = 3.0;
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    drawPath(ctx, animPoints, rect);
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.fillStyle = 'rgba(50, 100, 200, 0.9)';
+                    const [pixelX, pixelY] = toPixel(currPoint);
+                    ctx.arc(pixelX, pixelY, 6, 0, Math.PI * 2);
+                    ctx.fill();
+                }
 
                 animationId = requestAnimationFrame(draw);
             }
@@ -334,7 +408,7 @@
             const sentenceContainer = document.getElementById('sentence-container');
             const sentenceDisplay = document.getElementById('sentence-display');
             const sentenceStats = document.getElementById('sentence-stats');
-            let pendingTimer = null, pendingRaf = null, predictionId = 0;
+            let pendingTimer = null, commitTimer = null, pendingRaf = null, predictionId = 0;
             const DEBOUNCE_THRESHOLD = 15, DEBOUNCE_DELAY = 450;
             let charTimestamps = [], lastInputLength = 0;
             let mode = 'word', sentenceState = 'idle', sentenceWords = [], wordHistory = [], awaitingPredictions = [], currentWordStartTime = null;
@@ -344,6 +418,7 @@
 
             function cancelPending() {
                 if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null; }
+                if (commitTimer) { clearTimeout(commitTimer); commitTimer = null; }
                 if (pendingRaf) { cancelAnimationFrame(pendingRaf); pendingRaf = null; }
                 predictionId++;
                 isPlaybackActive = false;
@@ -518,29 +593,40 @@
                 }
                 if (mode === 'sentence' && sentenceState === 'awaiting') { sentenceState = 'typing'; }
                 const debounceDelay = mode === 'sentence' ? DEBOUNCE_DELAY : (swipe.length < DEBOUNCE_THRESHOLD ? 100 : DEBOUNCE_DELAY);
-                pendingTimer = setTimeout(() => {
-                    runPrediction(id);
-                    if (mode === 'sentence' && charTimestamps.length >= 2) {
-                        isPlaybackActive = true;
-                        playbackStartTime = performance.now();
-                        startAnimation();
-                    }
-                }, debounceDelay);
+                const commitDelay = DEBOUNCE_DELAY;
+                if (debounceDelay === commitDelay) {
+                    pendingTimer = setTimeout(() => {
+                        if (id !== predictionId) return;
+                        isWordCommitted = true;
+                        drawStaticPath(input.value.trim(), [...charTimestamps], true);
+                        runPrediction(id);
+                        if (charTimestamps.length >= 2) {
+                            isPlaybackActive = true;
+                            playbackStartTime = performance.now();
+                            startAnimation();
+                        }
+                    }, debounceDelay);
+                } else {
+                    pendingTimer = setTimeout(() => {
+                        runPrediction(id);
+                    }, debounceDelay);
+                    commitTimer = setTimeout(() => {
+                        if (id !== predictionId) return;
+                        isWordCommitted = true;
+                        drawStaticPath(input.value.trim(), [...charTimestamps], true);
+                        if (charTimestamps.length >= 2) {
+                            isPlaybackActive = true;
+                            playbackStartTime = performance.now();
+                            startAnimation();
+                        }
+                    }, commitDelay);
+                }
                 if (mode === 'word' && swipe.length >= DEBOUNCE_THRESHOLD) {
                     status.innerHTML = '<span>Typing...</span><span class="typing-stats"></span>';
                 } else if (mode === 'sentence') {
                     status.innerHTML = '<span>Typing...</span><span class="typing-stats"></span>';
                 }
             });
-
-            setTimeout(() => {
-                isWordCommitted = true;
-                if (mode === 'sentence' && charTimestamps.length >= 2) {
-                    isPlaybackActive = true;
-                    playbackStartTime = performance.now();
-                    startAnimation();
-                }
-            }, DEBOUNCE_DELAY);
         }
         main().catch(err => { status.textContent = 'Error: ' + err.message; console.error(err); });
     </script>

@@ -8,7 +8,7 @@ import AppKit
 import Foundation
 
 enum OverlayLayout {
-    static let panelWidth: CGFloat = 480
+    static let panelWidth: CGFloat = 388
     static let horizontalPadding: CGFloat = 16
     static let verticalPaddingTop: CGFloat = 12
     static let verticalPaddingBottom: CGFloat = 4
@@ -44,6 +44,11 @@ enum OverlayLayout {
 
 struct ContentView: View {
     @ObservedObject private var appState = AppState.shared
+    @AppStorage(AppSettings.Keys.overlayBackgroundOpacity) private var backgroundOverlayOpacity = AppSettings.Defaults.overlayBackgroundOpacity
+
+    private var backgroundOpacity: Double {
+        min(max(backgroundOverlayOpacity, 0.0), 0.95)
+    }
 
     private var visiblePredictionWords: [String] {
         appState.predictions.prefix(OverlayLayout.predictionCount).map { $0.word }
@@ -87,7 +92,7 @@ struct ContentView: View {
             )
                 .frame(maxWidth: .infinity)
 
-            FooterHint()
+            FooterBar()
         }
         .padding(.horizontal, OverlayLayout.horizontalPadding)
         .padding(.top, OverlayLayout.verticalPaddingTop)
@@ -95,9 +100,23 @@ struct ContentView: View {
         .frame(width: OverlayLayout.panelSize.width, height: OverlayLayout.panelSize.height)
         .background(
             VisualEffectView(material: .hudWindow, blendingMode: .withinWindow, emphasized: false)
-                .overlay(Color.black.opacity(OverlayLayout.backgroundOverlayOpacity))
+                .overlay(Color.black.opacity(backgroundOpacity))
         )
         .clipShape(RoundedRectangle(cornerRadius: OverlayLayout.containerCornerRadius))
+    }
+}
+
+private struct FooterBar: View {
+    var body: some View {
+        HStack(alignment: .center, spacing: 8) {
+            FooterHint()
+            Spacer(minLength: 0)
+            SettingsGlyphButton()
+        }
+        .font(.system(size: 11, weight: .medium, design: .rounded))
+        .foregroundStyle(.gray)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: OverlayLayout.footerHeight)
     }
 }
 
@@ -138,9 +157,28 @@ private struct PredictionRow: View {
 }
 
 private struct FooterHint: View {
+    @AppStorage(AppSettings.Keys.hotkeyPreset) private var hotkeyPresetRaw = AppSettings.Defaults.hotkeyPreset.rawValue
+    @AppStorage(AppSettings.Keys.customToggleHotkeyKeyCode) private var customToggleHotkeyKeyCode = AppSettings.Defaults.customToggleHotkeyKeyCode
+    @AppStorage(AppSettings.Keys.customToggleHotkeyModifiers) private var customToggleHotkeyModifiers = AppSettings.Defaults.customToggleHotkeyModifiers
+
+    private var toggleHint: String {
+        let preset = AppSettings.ToggleHotkeyPreset(rawValue: hotkeyPresetRaw) ?? AppSettings.Defaults.hotkeyPreset
+
+        switch preset {
+        case .custom:
+            guard customToggleHotkeyModifiers != 0 else { return "Menu" }
+            return AppSettings.hotkeyHintSymbol(
+                keyCode: customToggleHotkeyKeyCode,
+                modifierMask: customToggleHotkeyModifiers
+            )
+        default:
+            return preset.hintSymbol
+        }
+    }
+
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            FooterIconLabel(icon: "⇧⇥", text: "toggle")
+            FooterIconLabel(icon: toggleHint, text: "toggle")
             FooterDot()
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 FooterIconLabel(icon: "↵", text: "or")
@@ -151,10 +189,21 @@ private struct FooterHint: View {
             FooterDot()
             FooterIconLabel(icon: "⎋", text: "close")
         }
-        .font(.system(size: 11, weight: .medium, design: .rounded))
-        .foregroundColor(.gray)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: OverlayLayout.footerHeight, alignment: .leading)
+    }
+}
+
+private struct SettingsGlyphButton: View {
+    var body: some View {
+        Button {
+            NotificationCenter.default.post(name: .openSettings, object: nil)
+        } label: {
+            Image(systemName: "gearshape")
+                .font(.system(size: 11, weight: .semibold))
+                .frame(width: 18, height: OverlayLayout.footerHeight)
+        }
+        .buttonStyle(.plain)
+        .help("Settings")
+        .accessibilityLabel("Settings")
     }
 }
 
@@ -214,12 +263,14 @@ struct KeyboardView: View {
             TimelineView(.periodic(from: .now, by: isPlaybackActive ? 1.0 / 60.0 : 0.5)) { timeline in
                 Canvas { context, _ in
                     let totalCols: CGFloat = 13
-                    let leftPad: CGFloat = OverlayLayout.keyboardSidePadding
-                    let rightPad: CGFloat = OverlayLayout.keyboardSidePadding
                     let gap: CGFloat = 2
-                    let availableWidth = max(0, proxy.size.width - leftPad - rightPad - gap * (totalCols - 1))
+                    let minPadding: CGFloat = OverlayLayout.keyboardSidePadding
+                    let availableWidth = max(0, proxy.size.width - minPadding * 2 - gap * (totalCols - 1))
                     let keyW = max(16, min(24, availableWidth / totalCols))
                     let keyH = keyW * 0.7
+
+                    let keyboardWidth = totalCols * keyW + (totalCols - 1) * gap
+                    let leftPad = (proxy.size.width - keyboardWidth) / 2
 
                     let maxRow = keyboardLayout.map { $0.2 }.max() ?? 0
                     let gridHeight = maxRow * (keyH + gap) + keyH
@@ -335,9 +386,17 @@ struct KeyboardView: View {
                         let loopElapsed = elapsed.truncatingRemainder(dividingBy: max(loopDuration, 0.01))
 
                         if loopElapsed >= totalDuration {
-                            if let startPoint = animationPathPoints.first {
-                                activeKey = keyChars.first
-                                context.fill(Path(ellipseIn: CGRect(x: startPoint.x - 6, y: startPoint.y - 6, width: 12, height: 12)),
+                            if let lastPoint = animationPathPoints.last {
+                                activeKey = keyChars.last
+                                
+                                let fullPath = smoothPath(points: animationPathPoints)
+                                context.stroke(
+                                    fullPath,
+                                    with: .color(Color.accentColor.opacity(0.7)),
+                                    style: StrokeStyle(lineWidth: 3.0, lineCap: .round, lineJoin: .round)
+                                )
+
+                                context.fill(Path(ellipseIn: CGRect(x: lastPoint.x - 6, y: lastPoint.y - 6, width: 12, height: 12)),
                                              with: .color(.accentColor.opacity(0.9)))
                             }
                         } else {
@@ -420,11 +479,18 @@ struct KeyboardView: View {
             return path
         }
 
-        for idx in 1..<(points.count - 1) {
-            let current = points[idx]
-            let next = points[idx + 1]
-            let mid = midpoint(current, next)
-            path.addQuadCurve(to: mid, control: current)
+        if points.count > 2 {
+            let p0 = points[0]
+            let p1 = points[1]
+            let firstMid = CGPoint(x: (p0.x + p1.x) * 0.5, y: (p0.y + p1.y) * 0.5)
+            path.addLine(to: firstMid)
+
+            for idx in 1..<(points.count - 1) {
+                let current = points[idx]
+                let next = points[idx + 1]
+                let mid = midpoint(current, next)
+                path.addQuadCurve(to: mid, control: current)
+            }
         }
 
         if let last = points.last {

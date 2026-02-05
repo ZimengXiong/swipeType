@@ -25,7 +25,7 @@ final class AppState: ObservableObject {
 
     private var requestId = 0
     private var debounceTimer: Timer?
-    private let debounceDelay: TimeInterval = 0.45  // 450ms
+    private var debounceDelay: TimeInterval { AppSettings.debounceDelay }
 
     private init() {}
 
@@ -44,7 +44,7 @@ final class AppState: ObservableObject {
         var wordToInsert: String? = nil
 
         // If word is committed (debounce passed), insert it and start fresh
-        if isWordCommitted, let first = predictions.first {
+        if AppSettings.autoCommitAfterPause, isWordCommitted, let first = predictions.first {
             wordToInsert = first.word
             reset()
         }
@@ -105,7 +105,7 @@ final class AppState: ObservableObject {
                 if !self.currentInput.isEmpty && !self.predictions.isEmpty {
                     self.isWordCommitted = true
                 }
-                if self.currentInput.count >= 2 {
+                if AppSettings.playSwipeAnimation, self.currentInput.count >= 2 {
                     self.isPlaybackActive = true
                     self.playbackStartTime = Date().timeIntervalSinceReferenceDate
                 }

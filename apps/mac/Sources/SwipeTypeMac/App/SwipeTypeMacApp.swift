@@ -12,9 +12,8 @@ struct SwipeTypeMacApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
-        // Empty scene - we use NSPanel for the overlay
         Settings {
-            EmptyView()
+            SettingsView()
         }
     }
 }

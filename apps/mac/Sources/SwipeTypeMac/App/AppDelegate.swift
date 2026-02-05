@@ -6,6 +6,7 @@
 import Cocoa
 import Carbon.HIToolbox
 import os
+import SwiftUI
 
 private let overlayVisibility = OSAllocatedUnfairLock(initialState: false)
 private let swipeTypeSyntheticEventUserData: Int64 = 0x53575459 // 'SWTY'
@@ -18,7 +19,7 @@ private func setOverlayVisible(_ value: Bool) {
     overlayVisibility.withLock { $0 = value }
 }
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var overlayPanel: OverlayPanel?
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -27,13 +28,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var globalClickMonitor: Any?
     private var localClickMonitor: Any?
 
+    private var settingsWindow: NSWindow?
+    private var initialActivationPolicy: NSApplication.ActivationPolicy?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppSettings.registerDefaults()
+
+        initialActivationPolicy = NSApp.activationPolicy()
+
         // Load dictionary through AppState (handles errors and auto-download)
         Task { @MainActor in
             AppState.shared.loadDictionary()
         }
 
-        setupStatusItem()
+        updateStatusItemVisibility()
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(userDefaultsDidChange), name: UserDefaults.didChangeNotification, object: nil
+        )
+
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(openSettingsFromNotification(_:)), name: .openSettings, object: nil
+        )
         setupGlobalHotkey()
         overlayPanel = OverlayPanel()
 
@@ -47,12 +62,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         removeEventTap()
     }
 
+    private static func toggleOverlayMenuTitle() -> String {
+        if let hotkey = AppSettings.toggleHotkeyDisplayName {
+            return "Toggle Overlay (\(hotkey))"
+        }
+        return "Toggle Overlay"
+    }
+
     private func setupStatusItem() {
+        guard statusItem == nil else { return }
+
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem?.button?.image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: "SwipeType")
 
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "Toggle Overlay (⇧⇥)", action: #selector(toggleOverlay), keyEquivalent: ""))
+
+        let toggleItem = NSMenuItem(title: Self.toggleOverlayMenuTitle(), action: #selector(toggleOverlay), keyEquivalent: "")
+        toggleItem.target = self
+        toggleItem.tag = 101
+        menu.addItem(toggleItem)
+
+        let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: "")
+        settingsItem.target = self
+        menu.addItem(settingsItem)
+
         menu.addItem(NSMenuItem.separator())
 
         let statusItem = NSMenuItem(title: "Status: Loading...", action: nil, keyEquivalent: "")
@@ -65,9 +98,116 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         self.statusItem?.menu = menu
 
         // Update status periodically
+        statusTimer?.invalidate()
         statusTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.updateStatusMenuItem()
         }
+    }
+
+    @objc private func userDefaultsDidChange() {
+        updateStatusItemVisibility()
+        updateToggleMenuItemTitle()
+    }
+
+    private func updateStatusItemVisibility() {
+        if AppSettings.showMenuBarItem {
+            if statusItem == nil {
+                setupStatusItem()
+            }
+        } else {
+            removeStatusItem()
+        }
+    }
+
+    private func removeStatusItem() {
+        guard let statusItem else { return }
+
+        statusTimer?.invalidate()
+        statusTimer = nil
+
+        NSStatusBar.system.removeStatusItem(statusItem)
+        self.statusItem = nil
+    }
+
+    private func updateToggleMenuItemTitle() {
+        guard let menu = statusItem?.menu,
+              let item = menu.item(withTag: 101) else { return }
+        item.title = Self.toggleOverlayMenuTitle()
+    }
+
+    @objc private func openSettings() {
+        Task { @MainActor in
+            presentSettingsWindow()
+        }
+    }
+
+    @objc private func openSettingsFromNotification(_ notification: Notification) {
+        Task { @MainActor in
+            presentSettingsWindow()
+        }
+    }
+
+    @MainActor
+    private func presentSettingsWindow() {
+        hideOverlayIfNeeded()
+
+        if NSApp.activationPolicy() != .regular {
+            NSApp.setActivationPolicy(.regular)
+        }
+
+        let window: NSWindow
+        if let settingsWindow {
+            window = settingsWindow
+        } else {
+            window = makeSettingsWindow()
+            settingsWindow = window
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+    }
+
+    @MainActor
+    private func makeSettingsWindow() -> NSWindow {
+        let rect = NSRect(x: 0, y: 0, width: 560, height: 500)
+        let window = NSWindow(
+            contentRect: rect,
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Settings"
+        window.isReleasedWhenClosed = false
+        window.setFrameAutosaveName("SwipeType.SettingsWindow")
+        window.center()
+        window.collectionBehavior = [.moveToActiveSpace]
+        window.delegate = self
+
+        let hosting = NSHostingView(rootView: SettingsView())
+        hosting.autoresizingMask = [.width, .height]
+        window.contentView = hosting
+
+        return window
+    }
+
+    @MainActor
+    private func hideOverlayIfNeeded() {
+        let isPanelVisible = overlayPanel?.isVisible ?? false
+        guard isOverlayVisible() || isPanelVisible else { return }
+
+        AppState.shared.hideOverlay()
+        setOverlayVisible(false)
+        NotificationCenter.default.post(name: .hideOverlay, object: nil)
+        removeOutsideClickMonitors()
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow,
+              window == settingsWindow,
+              let initialActivationPolicy,
+              initialActivationPolicy != .regular else { return }
+
+        NSApp.setActivationPolicy(initialActivationPolicy)
     }
 
     private func updateStatusMenuItem() {
@@ -218,8 +358,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let keyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
         let flags = event.flags
 
-        // Shift+Tab toggle
-        if keyCode == kVK_Tab && flags.contains(.maskShift) {
+        // Toggle overlay hotkey
+        if AppSettings.matchesToggleOverlayHotkey(keyCode: keyCode, flags: flags) {
             if type == .keyDown {
                 DispatchQueue.main.async {
                     guard let refcon else { return }
@@ -271,10 +411,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 state.deleteCharacter()
 
             case kVK_Return:
-                if state.currentInput.isEmpty || state.isWordCommitted {
-                    if let word = state.selectPrediction(at: 0) {
-                        TextInsertionService.shared.insertText(word + " ")
-                    }
+                let allowCommit: Bool
+                if AppSettings.requirePauseBeforeCommit {
+                    allowCommit = state.currentInput.isEmpty || state.isWordCommitted
+                } else {
+                    allowCommit = !state.currentInput.isEmpty && !state.predictions.isEmpty
+                }
+
+                if allowCommit, let word = state.selectPrediction(at: 0) {
+                    TextInsertionService.shared.insertText(AppSettings.committedText(for: word))
                 }
 
             case kVK_Space:
@@ -283,14 +428,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             default:
                 if keyCode >= kVK_ANSI_1 && keyCode <= kVK_ANSI_5 {
-                    if state.currentInput.isEmpty || state.isWordCommitted {
-                        if let word = state.selectPrediction(at: keyCode - kVK_ANSI_1) {
-                            TextInsertionService.shared.insertText(word + " ")
-                        }
+                    let allowCommit: Bool
+                    if AppSettings.requirePauseBeforeCommit {
+                        allowCommit = state.currentInput.isEmpty || state.isWordCommitted
+                    } else {
+                        allowCommit = !state.currentInput.isEmpty && !state.predictions.isEmpty
+                    }
+
+                    if allowCommit, let word = state.selectPrediction(at: keyCode - kVK_ANSI_1) {
+                        TextInsertionService.shared.insertText(AppSettings.committedText(for: word))
                     }
                 } else if let char = keyCodeToChar(keyCode) {
                     if let autoWord = state.addCharacter(char) {
-                        TextInsertionService.shared.insertText(autoWord + " ")
+                        TextInsertionService.shared.insertText(AppSettings.committedText(for: autoWord))
                     }
                 }
             }
