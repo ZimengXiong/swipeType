@@ -102,9 +102,9 @@
         const KEY_HEIGHT = 28.0;
         const keyElements = {};
         const SLOPPINESS_VARIANTS = 5;
-        const SLOPPINESS_AMPLITUDE = 1.2;
-        const ANIMATION_SLOPPINESS_AMPLITUDE = 1.6;
-        const IDLE_LOOP_PADDING = 0.5;
+        const SLOPPINESS_AMPLITUDE = 3.5;
+        const ANIMATION_SLOPPINESS_AMPLITUDE = 4.5;
+        const IDLE_LOOP_PADDING = 0.4;
 
         function renderKeyboard() {
             keyboard.innerHTML = '';
@@ -269,7 +269,7 @@
             if (keyTimestamps.length >= 2) {
                 const n = keyTimestamps.length;
                 const rawDuration = keyTimestamps[n - 1] - keyTimestamps[0];
-                const desiredDurationMs = Math.min(1600, Math.max(700, n * 70));
+                const desiredDurationMs = Math.min(1200, Math.max(500, n * 50));
                 const useSynthetic = !Number.isFinite(rawDuration) || rawDuration < 250 || rawDuration > 4000;
                 if (useSynthetic) {
                     const step = desiredDurationMs / (n - 1);
