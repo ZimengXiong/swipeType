@@ -1,15 +1,10 @@
-//
-//  AppDelegate.swift
-//  SwipeTypeMac
-//
-
 import Cocoa
 import Carbon.HIToolbox
 import os
 import SwiftUI
 
 private let overlayVisibility = OSAllocatedUnfairLock(initialState: false)
-private let swipeTypeSyntheticEventUserData: Int64 = 0x53575459 // 'SWTY'
+private let swipeTypeSyntheticEventUserData: Int64 = 0x53575459
 
 private func isOverlayVisible() -> Bool {
     overlayVisibility.withLock { $0 }
@@ -36,7 +31,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         initialActivationPolicy = NSApp.activationPolicy()
 
-        // Load dictionary through AppState (handles errors and auto-download)
         Task { @MainActor in
             AppState.shared.loadDictionary()
         }
@@ -97,7 +91,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         self.statusItem?.menu = menu
 
-        // Update status periodically
         statusTimer?.invalidate()
         statusTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.updateStatusMenuItem()
@@ -184,8 +177,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let hosting = NSHostingView(rootView: SettingsView())
         hosting.translatesAutoresizingMaskIntoConstraints = false
         window.contentView = hosting
-        
-        // Let the window size itself to the content
+
         window.setContentSize(hosting.fittingSize)
         window.contentMinSize = NSSize(width: 820, height: 400)
         window.center()
@@ -251,7 +243,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func setupGlobalHotkey() {
         guard PermissionManager.shared.checkAccessibilityPermission() else {
             PermissionManager.shared.requestAccessibilityPermission()
-            // Monitor for permission grant and retry
             PermissionManager.shared.startMonitoringPermission { [weak self] granted in
                 if granted {
                     DispatchQueue.main.async {
@@ -353,7 +344,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         guard type == .keyDown || type == .keyUp else { return Unmanaged.passRetained(event) }
 
-        // Always allow SwipeType's own synthetic events through.
         if event.getIntegerValueField(.eventSourceUserData) == swipeTypeSyntheticEventUserData {
             return Unmanaged.passRetained(event)
         }
@@ -361,7 +351,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let keyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
         let flags = event.flags
 
-        // Toggle overlay hotkey
         if AppSettings.matchesToggleOverlayHotkey(keyCode: keyCode, flags: flags) {
             if type == .keyDown {
                 DispatchQueue.main.async {
@@ -374,8 +363,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         guard type == .keyDown, isOverlayVisible() else { return Unmanaged.passRetained(event) }
 
-        // Let modifier key combinations (Cmd+key, Ctrl+key, Option+key) pass through
-        // These are likely shortcuts (including our own Cmd+V for paste)
         let hasModifier = flags.contains(.maskCommand) || flags.contains(.maskControl) || flags.contains(.maskAlternate)
         if hasModifier {
             return Unmanaged.passRetained(event)
@@ -384,7 +371,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         return handleKey(keyCode, flags: flags) ? nil : Unmanaged.passRetained(event)
     }
 
-    // Keys that should pass through even when overlay is visible
     private static let passthroughKeys: Set<Int> = [
         kVK_Command, kVK_Shift, kVK_Option, kVK_Control,
         kVK_RightCommand, kVK_RightShift, kVK_RightOption, kVK_RightControl,
@@ -395,12 +381,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     ]
 
     private static func handleKey(_ keyCode: Int, flags: CGEventFlags) -> Bool {
-        // Let modifier and function keys pass through
         if passthroughKeys.contains(keyCode) {
             return false
         }
 
-        // Consume all other keys when overlay is visible to prevent leaking
         DispatchQueue.main.async {
             let state = AppState.shared
 
@@ -426,7 +410,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
 
             case kVK_Space:
-                // Consume space but do nothing - prevents leaking to active app
                 break
 
             default:
@@ -449,7 +432,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
         }
 
-        // Consume all non-passthrough keys to prevent leaking to active app
         return true
     }
 

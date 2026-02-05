@@ -120,7 +120,7 @@ struct ContentView: View {
                     VisualEffectView(material: .hudWindow, blendingMode: .withinWindow, emphasized: false)
                     Color.black.opacity(backgroundOpacity)
                 } else {
-                    // Opaque background: black with white component inversely proportional to dimming
+    
                     Color(white: 0.25 * (1.0 - backgroundOverlayOpacity / 0.9))
                 }
             }
@@ -386,7 +386,7 @@ struct KeyboardView: View {
                     let minPadding: CGFloat = 6
                     let availableWidth = max(0, proxy.size.width - minPadding * 2 - gap * (totalCols - 1))
                     
-                    // Dynamically calculate key size to fill height
+
                     let maxKeyH = (proxy.size.height - gap * 2) / 3
                     let keyW = max(16, min(maxKeyH, availableWidth / totalCols))
                     let keyH = keyW // Square keys
@@ -478,7 +478,7 @@ struct KeyboardView: View {
                         let y = startPoint.y + (endPoint.y - startPoint.y) * progress
                         return (CGPoint(x: x, y: y), segmentIdx)
                     }
-                    // Draw simulated paths only after commit (not during animation)
+
                     if showSimulation && !isPlaybackActive {
                         if let seed = animationSeed, points.count >= 2 {
                             for variant in 0..<sloppinessVariants {
@@ -582,7 +582,7 @@ struct KeyboardView: View {
     private func jitteredPath(points: [CGPoint], seed: UInt64, variant: Int, amplitude: CGFloat) -> [CGPoint] {
         var jittered: [CGPoint] = []
         for (idx, point) in points.enumerated() {
-            // Stable seed per point to prevent path shifting
+
             var pointState = UInt64(idx) &* 0x12345678 ^ UInt64(variant) &* 0x87654321
             let dx = (nextRandom(&pointState) - 0.5) * amplitude
             let dy = (nextRandom(&pointState) - 0.5) * amplitude

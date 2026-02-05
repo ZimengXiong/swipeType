@@ -1,7 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-# Setup paths
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 ROOT_DIR="$( cd "$SCRIPT_DIR/.." && pwd )"
 VERSION_FILE="$ROOT_DIR/VERSION"
@@ -49,7 +48,6 @@ ensure_homebrew_repo() {
 
 cd "$ROOT_DIR"
 
-# Check for uncommitted changes (excluding version files which we might change)
 if ! git diff-index --quiet HEAD --; then
     echo "Warning: You have uncommitted changes in the main repo."
     read -p "Do you want to continue? (y/N) " -n 1 -r
@@ -59,7 +57,6 @@ if ! git diff-index --quiet HEAD --; then
     fi
 fi
 
-# Read current version
 CURRENT_VERSION=$(cat "$VERSION_FILE" | tr -d '[:space:]')
 IFS='.' read -r -a VERSION_PARTS <<< "$CURRENT_VERSION"
 MAJOR="${VERSION_PARTS[0]}"
@@ -96,7 +93,6 @@ case $CHOICE in
         ;;
 esac
 
-# Update VERSION file if changed
 if [ "$NEW_VERSION" != "$CURRENT_VERSION" ]; then
     echo "$NEW_VERSION" > "$VERSION_FILE"
     echo "Updated VERSION to $NEW_VERSION"
@@ -106,7 +102,6 @@ echo "Starting Build & Package Process..."
 cd "$ROOT_DIR"
 make dmg-mac
 
-# Read the final Build Number
 FINAL_BUILD=$(cat "$BUILD_NUMBER_FILE" | tr -d '[:space:]')
 TAG_NAME="v$NEW_VERSION"
 RELEASE_TITLE="Release $NEW_VERSION (Build $FINAL_BUILD)"
@@ -117,7 +112,6 @@ if [ ! -f "$DMG_PATH" ]; then
     exit 1
 fi
 
-# Calculate SHA256 for Homebrew
 echo "SHASUMing DMG..."
 SHA256=$(shasum -a 256 "$DMG_PATH" | awk '{print $1}' | tr '[:upper:]' '[:lower:]')
 if [[ ! "$SHA256" =~ ^[0-9a-f]{64}$ ]]; then
@@ -137,7 +131,6 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     exit 0
 fi
 
-# 1. Update Homebrew Cask
 echo "Updating Homebrew Cask..."
 ensure_homebrew_repo
 
@@ -178,10 +171,8 @@ if ! grep -q "sha256 \"$SHA256\"" "$CASK_FILE"; then
 fi
 echo "Updated $CASK_FILE"
 
-# Detect current branch
 CURRENT_BRANCH=$(git branch --show-current)
 
-# 2. Main Repo Git Operations
 echo "Committing main repo changes..."
 git add "$VERSION_FILE" "$BUILD_NUMBER_FILE" apps/mac/project.yml Cargo.toml .gitignore
 git commit -m "chore: release $TAG_NAME (Build $FINAL_BUILD)" || echo "No changes to commit in main repo"
@@ -193,11 +184,9 @@ echo "Pushing main repo to GitHub ($CURRENT_BRANCH)..."
 git push origin "$CURRENT_BRANCH"
 git push origin "$TAG_NAME"
 
-# 3. GitHub Release
 echo "Creating GitHub Release..."
 gh release create "$TAG_NAME" "$DMG_PATH" --title "$RELEASE_TITLE" --notes "Automated release via CLI."
 
-# 4. Homebrew Repo Git Operations
 echo "Committing Homebrew repo changes..."
 cd "$HB_REPO_DIR"
 git add "$HB_CASK_REL_PATH"

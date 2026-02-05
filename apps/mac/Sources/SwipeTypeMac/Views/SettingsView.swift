@@ -74,7 +74,7 @@ struct SettingsView: View {
     var body: some View {
         VStack(alignment: .trailing, spacing: 0) {
             HStack(alignment: .top, spacing: 24) {
-                // Column 1: Behavior
+
                 VStack(alignment: .leading, spacing: 20) {
                     settingsSection(title: "Hotkey", icon: "keyboard") {
                         VStack(alignment: .leading, spacing: 14) {
@@ -170,13 +170,13 @@ struct SettingsView: View {
                                                         .font(.subheadline.bold())
                                                         .foregroundColor(.white) // Always white
                         
-                                                    Image(systemName: hasAccessibilityPermission ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                                        .foregroundColor(hasAccessibilityPermission ? .green : .red) // Green for granted, red for not granted
+                                                     Image(systemName: hasAccessibilityPermission ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                                         .foregroundColor(hasAccessibilityPermission ? .green : .red)
                         
                                                     Spacer()
                         
-                                                    if !hasAccessibilityPermission {
-                                                        Button("Open Settings") { // New button text
+                                                     if !hasAccessibilityPermission {
+                                                         Button("Open Settings") {
                                                             PermissionManager.shared.openAccessibilitySettings() // Direct call
                                                         }
                                                         .buttonStyle(.bordered)
@@ -196,7 +196,7 @@ struct SettingsView: View {
                     }
                 }
 
-                // Column 2: Appearance & About
+
                 VStack(alignment: .leading, spacing: 20) {
                     settingsSection(title: "Overlay", icon: "macwindow") {
                         VStack(alignment: .leading, spacing: 12) {
@@ -217,7 +217,7 @@ struct SettingsView: View {
                                     .font(.system(size: 10, weight: .bold))
                                     .foregroundStyle(.secondary)
                                 
-                                // The Miniature Mock Overlay
+                                
                                 VStack(spacing: 2) {
                                     // Predictions
                                     VStack(spacing: 3) {

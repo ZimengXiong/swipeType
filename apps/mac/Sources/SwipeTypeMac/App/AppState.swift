@@ -1,8 +1,3 @@
-//
-//  AppState.swift
-//  SwipeTypeMac
-//
-
 import Foundation
 import SwiftUI
 
@@ -31,21 +26,16 @@ final class AppState: ObservableObject {
 
     private init() {}
 
-    // MARK: - Dictionary Management
-
     func loadDictionary() {
         let wordCount = SwipeEngineBridge.shared.loadBundledDictionary()
         isDictionaryLoaded = wordCount > 0
         dictionaryWordCount = wordCount
     }
 
-    // MARK: - Input Handling
-
-    /// Returns word to insert if previous word was committed
     func addCharacter(_ char: Character) -> String? {
         var wordToInsert: String? = nil
 
-        // If word is committed (debounce passed), insert it and start fresh
+
         if AppSettings.autoCommitAfterPause, isWordCommitted, let first = predictions.first {
             wordToInsert = first.word
             reset()
@@ -95,8 +85,6 @@ final class AppState: ObservableObject {
         reset()
     }
 
-    // MARK: - Debounce Timer
-
     private func resetDebounceTimer() {
         cancelDebounceTimer()
         isWordCommitted = false
@@ -119,8 +107,6 @@ final class AppState: ObservableObject {
         debounceTimer?.invalidate()
         debounceTimer = nil
     }
-
-    // MARK: - Prediction
 
     private func triggerPrediction() {
         requestId += 1

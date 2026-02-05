@@ -1,10 +1,3 @@
-//
-//  PermissionManager.swift
-//  SwipeTypeMac
-//
-//  Handles Accessibility permission checks and requests
-//
-
 import Cocoa
 import ApplicationServices
 
@@ -13,13 +6,11 @@ class PermissionManager {
 
     private init() {}
 
-    /// Check if accessibility permission is granted
     func checkAccessibilityPermission() -> Bool {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): false] as CFDictionary
         return AXIsProcessTrustedWithOptions(options)
     }
 
-    /// Request accessibility permission (shows system dialog)
     func requestAccessibilityPermission() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
         let trusted = AXIsProcessTrustedWithOptions(options)
@@ -29,7 +20,6 @@ class PermissionManager {
         }
     }
 
-    /// Show instructions for granting accessibility permission
     private func showAccessibilityInstructions() {
         let alert = NSAlert()
         alert.messageText = "Accessibility Permission Required"
@@ -53,13 +43,11 @@ class PermissionManager {
         }
     }
 
-    /// Open System Settings to Accessibility pane
     func openAccessibilitySettings() {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
         NSWorkspace.shared.open(url)
     }
 
-    /// Monitor for accessibility permission changes
     func startMonitoringPermission(onChange: @escaping (Bool) -> Void) {
         Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
             guard let self = self else {

@@ -1,24 +1,14 @@
-//
-//  TextInsertionService.swift
-//  SwipeTypeMac
-//
-//  Handles inserting text into the active application
-//
-
 import Cocoa
 import Carbon.HIToolbox
 
-private let swipeTypeSyntheticEventUserData: Int64 = 0x53575459 // 'SWTY'
+private let swipeTypeSyntheticEventUserData: Int64 = 0x53575459
 
 class TextInsertionService {
     static let shared = TextInsertionService()
 
     private init() {}
 
-    /// Insert text into the currently focused text field using clipboard + Cmd+V
     func insertText(_ text: String) {
-        // Some apps trim trailing whitespace from paste operations.
-        // To reliably add spaces/newlines, paste the main content then synthesize the trailing keys.
         let (contentToPaste, trailingKeys) = splitTrailingKeys(text)
 
         if contentToPaste.isEmpty {
@@ -33,32 +23,27 @@ class TextInsertionService {
         let pasteboard = NSPasteboard.general
         let hadInitialContents = pasteboard.pasteboardItems?.isEmpty == false
 
-        // Save current clipboard
         let savedContents = pasteboard.pasteboardItems?.compactMap { item -> [(NSPasteboard.PasteboardType, Data)]? in
             item.types.compactMap { type in
                 item.data(forType: type).map { (type, $0) }
             }
         }.flatMap { $0 } ?? []
 
-        // Set clipboard to our text (without trailing spaces/newlines)
         pasteboard.clearContents()
         pasteboard.setString(contentToPaste, forType: .string)
         let expectedChangeCount = pasteboard.changeCount
 
-        // Small delay then paste
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             if !contentToPaste.isEmpty {
                 self.sendPaste()
             }
 
             if !trailingKeys.isEmpty {
-                // Slight delay to ensure paste completed in the target app.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
                     self.sendTrailingKeys(trailingKeys)
                 }
             }
 
-            // Restore clipboard after paste completes
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 guard pasteboard.changeCount == expectedChangeCount else { return }
                 if !savedContents.isEmpty {
@@ -73,18 +58,12 @@ class TextInsertionService {
         }
     }
 
-    // MARK: - Key Events
-
     private func sendPaste() {
         let source = CGEventSource(stateID: .hidSystemState)
 
-        // Cmd down
         let cmdDown = CGEvent(keyboardEventSource: source, virtualKey: 0x37, keyDown: true)
-        // V down
         let vDown = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: true)
-        // V up
         let vUp = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: false)
-        // Cmd up
         let cmdUp = CGEvent(keyboardEventSource: source, virtualKey: 0x37, keyDown: false)
 
         cmdDown?.flags = .maskCommand
@@ -101,8 +80,6 @@ class TextInsertionService {
         vUp?.post(tap: .cghidEventTap)
         cmdUp?.post(tap: .cghidEventTap)
     }
-
-    // MARK: - Synthetic key helpers
 
     private func markSynthetic(_ event: CGEvent?) {
         event?.setIntegerValueField(.eventSourceUserData, value: swipeTypeSyntheticEventUserData)

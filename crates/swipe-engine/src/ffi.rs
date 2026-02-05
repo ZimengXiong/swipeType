@@ -1,6 +1,4 @@
 //! C FFI interface for the SwipeEngine
-//!
-//! This module provides a C-compatible API for using the SwipeEngine from other languages.
 
 use once_cell::sync::Lazy;
 use std::ffi::{CStr, CString};
@@ -12,8 +10,7 @@ use crate::SwipeEngine;
 /// Global engine instance
 static ENGINE: Lazy<Mutex<SwipeEngine>> = Lazy::new(|| Mutex::new(SwipeEngine::new()));
 
-/// Initialize the engine with a dictionary file path
-/// Returns the number of words loaded, or -1 on error
+/// Initialize the engine with a dictionary file path. Returns the number of words loaded, or -1 on error.
 #[no_mangle]
 pub extern "C" fn swipe_engine_load_dictionary(path: *const c_char) -> i32 {
     if path.is_null() {
@@ -73,8 +70,7 @@ pub extern "C" fn swipe_engine_word_count() -> i32 {
     }
 }
 
-/// Predict words from swipe input
-/// Returns a JSON string with predictions array, caller must free with swipe_engine_free_string
+/// Predict words from swipe input. Returns a JSON string with predictions array, caller must free with swipe_engine_free_string.
 #[no_mangle]
 pub extern "C" fn swipe_engine_predict(input: *const c_char, limit: i32) -> *mut c_char {
     if input.is_null() {
@@ -95,7 +91,6 @@ pub extern "C" fn swipe_engine_predict(input: *const c_char, limit: i32) -> *mut
 
     let predictions = engine.predict(input_str, limit.max(0) as usize);
 
-    // Build JSON array manually to avoid serde dependency
     let mut json = String::from("[");
     for (i, pred) in predictions.iter().enumerate() {
         if i > 0 {
@@ -125,7 +120,7 @@ pub extern "C" fn swipe_engine_predict(input: *const c_char, limit: i32) -> *mut
     }
 }
 
-/// Free a string returned by the engine
+/// Free a string returned by the engine.
 #[no_mangle]
 pub extern "C" fn swipe_engine_free_string(s: *mut c_char) {
     if !s.is_null() {
@@ -135,7 +130,7 @@ pub extern "C" fn swipe_engine_free_string(s: *mut c_char) {
     }
 }
 
-/// Set the popularity weight (0.0 to 1.0)
+/// Set the popularity weight (0.0 to 1.0).
 #[no_mangle]
 pub extern "C" fn swipe_engine_set_pop_weight(weight: f64) {
     if let Ok(mut engine) = ENGINE.lock() {

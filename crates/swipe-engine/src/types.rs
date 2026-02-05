@@ -34,7 +34,6 @@ impl Dictionary {
 
         let lines: Vec<&str> = freq_text.lines().collect();
 
-        // First pass: find max frequency
         for line in &lines {
             if let Some((_, count_str)) = line.split_once('\t') {
                 if let Ok(count) = count_str.parse::<f64>() {
@@ -43,7 +42,6 @@ impl Dictionary {
             }
         }
 
-        // Second pass: store normalized log frequencies
         for line in &lines {
             if let Some((word, count_str)) = line.split_once('\t') {
                 let word = word.trim().to_lowercase();

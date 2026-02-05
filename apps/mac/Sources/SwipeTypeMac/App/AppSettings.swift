@@ -1,8 +1,3 @@
-//
-//  AppSettings.swift
-//  SwipeTypeMac
-//
-
 import Carbon.HIToolbox
 import CoreGraphics
 import Foundation
@@ -242,7 +237,7 @@ enum AppSettings {
         return keyCode == hotkey.keyCode && normalizedModifiers(flags) == hotkey.modifiers
     }
 
-    // MARK: - Custom Hotkey
+
 
     private static var customToggleHotkey: Hotkey? {
         let mask = customToggleHotkeyModifierMask

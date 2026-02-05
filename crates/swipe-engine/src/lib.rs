@@ -30,7 +30,7 @@ pub struct SwipeEngine {
     dictionary: Dictionary,
     layout: HashMap<char, Point>,
     pop_weight: f64,
-    // Index by first letter
+
     by_first_letter: HashMap<char, Vec<usize>>,
     word_paths: Vec<Vec<Point>>,
 }
@@ -100,7 +100,6 @@ impl SwipeEngine {
             .cloned()
             .unwrap_or(Point { x: 0.0, y: 0.0 });
 
-        // Get candidate indices - only words starting with first char
         let candidate_indices = match self.by_first_letter.get(&first_char) {
             Some(indices) => indices,
             None => return vec![],

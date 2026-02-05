@@ -43,7 +43,7 @@ class OverlayPanel: NSPanel {
         hosting.autoresizingMask = [.width, .height]
         contentView = hosting
 
-        // Position at saved location or center of screen
+
         if hasSavedPosition {
             restorePosition()
         } else {
@@ -54,12 +54,12 @@ class OverlayPanel: NSPanel {
             self, selector: #selector(hide), name: .hideOverlay, object: nil
         )
 
-        // Save position when window moves
+
         NotificationCenter.default.addObserver(
             self, selector: #selector(windowDidMove), name: NSWindow.didMoveNotification, object: self
         )
 
-        // Reposition when screen changes
+
         NotificationCenter.default.addObserver(
             self, selector: #selector(screenDidChange), name: NSApplication.didChangeScreenParametersNotification, object: nil
         )
