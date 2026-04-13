@@ -7,7 +7,11 @@
     <style>
         body { font-family: system-ui, sans-serif; background: #eee; width: 100%; max-width: 700px; margin: 0 auto; padding: 40px 20px; box-sizing: border-box; }
         div { opacity: 0.8; }
-        h1 { font-size: 1.5em; }
+        h1 { font-size: 1.5em; margin: 0; }
+        .title-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+        .github-link { display: inline-flex; align-items: center; justify-content: center; color: #222; opacity: 0.85; transition: opacity 0.15s ease, transform 0.15s ease; }
+        .github-link:hover { opacity: 1; transform: translateY(-1px); }
+        .github-link svg { width: 20px; height: 20px; fill: currentColor; }
         input { width: 100%; padding: 8px; font-size: 1em; border: 1px solid #ccc; box-sizing: border-box; font-family: inherit; }
         #status { margin-top: 8px; font-size: 0.9em; display: flex; justify-content: space-between; }
         #status .typing-stats { text-align: right; }
@@ -36,7 +40,27 @@
     </style>
 </head>
 <body>
-    <h1>swipeType</h1>
+    <div class="title-row">
+        <h1>swipeType</h1>
+        <a
+            class="github-link"
+            href="https://github.com/ZimengXiong/swipePredictor"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Open swipePredictor on GitHub"
+            title="View source on GitHub"
+        >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38
+                0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52
+                0-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95
+                0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.65 7.65 0 0 1 8 4.69c.68
+                0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15
+                0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01
+                8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"></path>
+            </svg>
+        </a>
+    </div>
     <div class="mode-toggle">
         <button id="mode-word" class="active">Word Mode</button>
         <button id="mode-sentence">Sentence Mode</button>
@@ -45,7 +69,7 @@
         <div id="sentence-display"><span class="cursor"></span></div>
         <div id="sentence-stats"></div>
     </div>
-    <input type="text" id="swipe" placeholder="Type a swipe pattern..." disabled>
+    <input type="text" id="swipe" placeholder="Swipe a word on your keyboard..." disabled>
     <div id="status">Loading...</div>
     <div id="results"></div>
     <div id="keyboard-container">
