@@ -94,10 +94,10 @@
         <h2>Optimizations</h2>
         <p>To run DTW (an O(n×m) algorithm) against 333k words in milliseconds entirely client-side, we needed some optimizations. The engine is written in Rust and compiled to WebAssembly:</p>
         <ul>
-            <li><strong>Sakoe-Chiba band:</strong> constrain DTW to a diagonal band, reducing complexity to O(n×w)</li>
-            <li><strong>Early termination:</strong> prune candidates mid-computation if partial score exceeds current best</li>
-            <li><strong>O(n) space:</strong> keep only two rows of the DTW matrix in memory</li>
-            <li><strong>Start/end penalties:</strong> penalize words whose first or last character differs from the input path endpoints</li>
+            <li>Sakoe-Chiba band: constrain DTW to a diagonal band, reducing complexity to O(n×w)</li>
+            <li>Early termination: prune candidates mid-computation if partial score exceeds current best</li>
+            <li>O(n) space: keep only two rows of the DTW matrix in memory</li>
+            <li>Start/end penalties: penalize words whose first or last character differs from the input path endpoints</li>
         </ul>
         <p><a href="https://github.com/ZimengXiong/swipePredictor">Source</a></p>
     </div>
