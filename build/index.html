@@ -85,7 +85,7 @@
     <div id="explanation">
         <p>Swipe typing lets you draw a path across the keyboard instead of tapping individual keys. This predictor matches your input pattern against a word list.</p>
         <p>Each word is converted to a path on a QWERTY keyboard layout. The algorithm uses <a href="https://en.wikipedia.org/wiki/Dynamic_time_warping">Dynamic Time Warping (DTW)</a> to measure how similar your swipe path is to each word's path. Words with similar paths get low scores.</p>
-        <p>Word frequency from a corpus is used as a tiebreaker—common words rank higher when paths are equally close.</p>
+        <p>Word frequency from a corpus is used as a tiebreaker: common words rank higher when paths are equally close.</p>
         <p>Try these swipe patterns:</p>
         <ul>
             <li><em>asdfghjkl;poiuygfdsascsa</em> → alpaca</li>
@@ -94,10 +94,10 @@
         <h2>Optimizations</h2>
         <p>To run DTW (an O(n×m) algorithm) against 333k words in milliseconds entirely client-side, we needed some optimizations. The engine is written in Rust and compiled to WebAssembly:</p>
         <ul>
-            <li><strong>Sakoe-Chiba band</strong> — constrain DTW to a diagonal band, reducing complexity to O(n×w)</li>
-            <li><strong>Early termination</strong> — prune candidates mid-computation if partial score exceeds current best</li>
-            <li><strong>O(n) space</strong> — keep only two rows of the DTW matrix in memory</li>
-            <li><strong>Start/end penalties</strong> — penalize words whose first or last character differs from the input path endpoints</li>
+            <li><strong>Sakoe-Chiba band:</strong> constrain DTW to a diagonal band, reducing complexity to O(n×w)</li>
+            <li><strong>Early termination:</strong> prune candidates mid-computation if partial score exceeds current best</li>
+            <li><strong>O(n) space:</strong> keep only two rows of the DTW matrix in memory</li>
+            <li><strong>Start/end penalties:</strong> penalize words whose first or last character differs from the input path endpoints</li>
         </ul>
         <p><a href="https://github.com/ZimengXiong/swipePredictor">Source</a></p>
     </div>
