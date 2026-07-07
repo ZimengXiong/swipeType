@@ -18,7 +18,7 @@
         #results { margin-top: 8px; margin-bottom: 16px; }
         #keyboard-container { position: relative; margin-top: 16px; margin-bottom: 16px; width: 100%; aspect-ratio: 13 / 3.2; }
         #keyboard { position: absolute; width: 100%; height: 100%; }
-        .key { position: absolute; width: 7%; height: 28%; background: #fff; border: 1px solid #ccc; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 0.9em; text-transform: uppercase; box-sizing: border-box; transition: background-color 0.15s; }
+        .key { position: absolute; width: 7%; height: 28%; background: #fff; border: 1px solid #ccc; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 0.9em; text-transform: lowercase; box-sizing: border-box; transition: background-color 0.15s; }
         .key.active { background: #a8d4ff; }
         #path-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
         #explanation { margin-top: 16px; }
@@ -47,8 +47,8 @@
             href="https://github.com/ZimengXiong/swipePredictor"
             target="_blank"
             rel="noreferrer"
-            aria-label="Open swipePredictor on GitHub"
-            title="View source on GitHub"
+            aria-label="open swipeType on github"
+            title="view source on github"
         >
             <svg viewBox="0 0 16 16" aria-hidden="true">
                 <path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38
@@ -62,44 +62,44 @@
         </a>
     </div>
     <div class="mode-toggle">
-        <button id="mode-word" class="active">Word Mode</button>
-        <button id="mode-sentence">Sentence Mode</button>
+        <button id="mode-word" class="active">word mode</button>
+        <button id="mode-sentence">sentence mode</button>
     </div>
     <div id="sentence-container">
         <div id="sentence-display"><span class="cursor"></span></div>
         <div id="sentence-stats"></div>
     </div>
-    <input type="text" id="swipe" placeholder="Swipe a word on your keyboard..." disabled>
-    <div id="status">Loading...</div>
+    <input type="text" id="swipe" placeholder="swipe a word on your keyboard..." disabled>
+    <div id="status">loading...</div>
     <div id="results"></div>
     <div id="keyboard-container">
         <div id="keyboard"></div>
         <canvas id="path-canvas"></canvas>
     </div>
     <details style="margin-top: 12px; font-size: 0.85em; color: #555; cursor: pointer;">
-        <summary>Help & Usage</summary>
+        <summary>help & usage</summary>
         <p style="margin-top: 8px; line-height: 1.4;">
-            Draw patterns across the keyboard to type. SwipeType predicts words based on your path and automatically commits choices as you continue typing. Use <strong>1-5</strong> to select specific predictions and <strong>Backspace</strong> to undo words.
+            draw patterns across the keyboard to type. swipeType predicts words based on your path and automatically commits choices as you continue typing. use <strong>1-5</strong> to select specific predictions and <strong>backspace</strong> to undo words.
         </p>
     </details>
     <div id="explanation">
-        <p>Swipe typing lets you draw a path across the keyboard instead of tapping individual keys. This predictor matches your input pattern against a word list.</p>
-        <p>Each word is converted to a path on a QWERTY keyboard layout. The algorithm uses <a href="https://en.wikipedia.org/wiki/Dynamic_time_warping">Dynamic Time Warping (DTW)</a> to measure how similar your swipe path is to each word's path. Words with similar paths get low scores.</p>
-        <p>Word frequency from a corpus is used as a tiebreaker: common words rank higher when paths are equally close.</p>
-        <p>Try these swipe patterns:</p>
+        <p>swipe typing lets you draw a path across the keyboard instead of tapping individual keys. this predictor matches your input pattern against a word list.</p>
+        <p>each word is converted to a path on a qwerty keyboard layout. the algorithm uses <a href="https://en.wikipedia.org/wiki/Dynamic_time_warping">dynamic time warping (dtw)</a> to measure how similar your swipe path is to each word's path. words with similar paths get low scores.</p>
+        <p>word frequency from a corpus is used as a tiebreaker, with common words ranking higher when paths are equally close.</p>
+        <p>try these swipe patterns</p>
         <ul>
             <li><em>asdfghjkl;poiuygfdsascsa</em> → alpaca</li>
             <li><em>poiuytrernmngyuijnb</em> → penguin</li>
         </ul>
-        <h2>Optimizations</h2>
-        <p>To run DTW (an O(n×m) algorithm) against 333k words in milliseconds entirely client-side, we needed some optimizations. The engine is written in Rust and compiled to WebAssembly:</p>
+        <h2>optimizations</h2>
+        <p>to run dtw (an o(n×m) algorithm) against 333k words in milliseconds entirely client-side, we needed some optimizations. the engine is written in rust and compiled to webassembly.</p>
         <ul>
-            <li>Sakoe-Chiba band: constrain DTW to a diagonal band, reducing complexity to O(n×w)</li>
-            <li>Early termination: prune candidates mid-computation if partial score exceeds current best</li>
-            <li>O(n) space: keep only two rows of the DTW matrix in memory</li>
-            <li>Start/end penalties: penalize words whose first or last character differs from the input path endpoints</li>
+            <li>the sakoe-chiba band constrains dtw to a diagonal band, reducing complexity to o(n×w)</li>
+            <li>early termination prunes candidates mid-computation if partial score exceeds current best</li>
+            <li>o(n) space keeps only two rows of the dtw matrix in memory</li>
+            <li>start/end penalties penalize words whose first or last character differs from the input path endpoints</li>
         </ul>
-        <p><a href="https://github.com/ZimengXiong/swipePredictor">Source</a></p>
+        <p><a href="https://github.com/ZimengXiong/swipePredictor">source</a></p>
     </div>
     <script type="module">
         import init, { init_dictionary, predict_wasm } from './swipe_web.js';
@@ -425,14 +425,14 @@
 
         renderKeyboard();
         async function main() {
-            status.textContent = 'Loading WASM...';
+            status.textContent = 'loading wasm...';
             await init();
-            status.textContent = 'Fetching dictionary...';
+            status.textContent = 'fetching dictionary...';
             const res = await fetch(DICT_URL);
             const freqText = await res.text();
-            status.textContent = 'Initializing...';
+            status.textContent = 'initializing...';
             init_dictionary(freqText);
-            status.innerHTML = '<span>Ready</span><span class="typing-stats"></span>';
+            status.innerHTML = '<span>ready</span><span class="typing-stats"></span>';
             input.disabled = false;
             input.focus();
             const modeWordBtn = document.getElementById('mode-word');
@@ -457,7 +457,7 @@
             }
 
             function renderPredictions(predictions, showBadges = false) {
-                results.innerHTML = `<div class="prediction" style="font-weight:bold;opacity:0.6"><span class="word">Word</span><span class="score">Score</span><span class="popularity">Popularity</span></div>` + predictions.map((p, i) => `<div class="prediction"><span class="word">${showBadges ? `[${i + 1}] ` : ''}${p.word}</span><span class="score">${p.score.toFixed(3)}</span><span class="popularity">${p.freq.toFixed(3)}</span></div>`).join('');
+                results.innerHTML = `<div class="prediction" style="font-weight:bold;opacity:0.6"><span class="word">word</span><span class="score">score</span><span class="popularity">popularity</span></div>` + predictions.map((p, i) => `<div class="prediction"><span class="word">${showBadges ? `[${i + 1}] ` : ''}${p.word}</span><span class="score">${p.score.toFixed(3)}</span><span class="popularity">${p.freq.toFixed(3)}</span></div>`).join('');
             }
 
             function updateSentenceDisplay() {
@@ -472,7 +472,7 @@
                 const minutes = totalDuration / 60000;
                 const physicalWpm = minutes > 0 ? Math.round((totalCharsTyped / 5) / minutes) : 0;
                 const actualWpm = minutes > 0 ? Math.round((totalCharsSelected / 5) / minutes) : 0;
-                sentenceStats.textContent = `${sentenceWords.length} words · ${totalCharsTyped}/${totalCharsSelected} chars · ${physicalWpm} physical / ${actualWpm} actual WPM`;
+                sentenceStats.textContent = `${sentenceWords.length} words · ${totalCharsTyped}/${totalCharsSelected} chars · ${physicalWpm} physical / ${actualWpm} actual wpm`;
             }
 
             function clearCanvas() {
@@ -503,7 +503,7 @@
                 clearCanvas();
                 updateSentenceDisplay();
                 updateSentenceStats();
-                status.innerHTML = '<span>Ready for next word</span><span class="typing-stats"></span>';
+                status.innerHTML = '<span>ready for next word</span><span class="typing-stats"></span>';
             }
 
             function undoLastWord() {
@@ -517,7 +517,7 @@
                 results.innerHTML = '';
                 updateSentenceDisplay();
                 updateSentenceStats();
-                status.innerHTML = '<span>Word removed</span><span class="typing-stats"></span>';
+                status.innerHTML = '<span>word removed</span><span class="typing-stats"></span>';
             }
 
             function setMode(newMode) {
@@ -540,7 +540,7 @@
                 clearCanvas();
                 updateSentenceDisplay();
                 updateSentenceStats();
-                status.innerHTML = '<span>Ready</span><span class="typing-stats"></span>';
+                status.innerHTML = '<span>ready</span><span class="typing-stats"></span>';
                 input.focus();
             }
 
@@ -550,7 +550,7 @@
             function runPrediction(id) {
                 if (id !== predictionId) return;
                 const swipe = input.value.trim().toLowerCase();
-                if (!swipe) { results.innerHTML = ''; status.innerHTML = '<span>Ready</span><span class="typing-stats"></span>'; return; }
+                if (!swipe) { results.innerHTML = ''; status.innerHTML = '<span>ready</span><span class="typing-stats"></span>'; return; }
                 const start = performance.now();
                 const json = predict_wasm(swipe, 5);
                 const elapsed = ((performance.now() - start) / 1000).toFixed(3);
@@ -559,7 +559,7 @@
                     awaitingPredictions = predictions;
                     sentenceState = 'awaiting';
                     renderPredictions(predictions, true);
-                    status.innerHTML = '<span>Press 1-5 to select, or start next word</span><span class="typing-stats"></span>';
+                    status.innerHTML = '<span>press 1-5 to select, or start next word</span><span class="typing-stats"></span>';
                 } else {
                     let typingStats = '';
                     if (charTimestamps.length >= 2) {
@@ -569,9 +569,9 @@
                         const physicalWpm = minutes > 0 ? Math.round((swipe.length / 5) / minutes) : 0;
                         const firstWord = predictions.length > 0 ? predictions[0].word : '';
                         const actualWpm = minutes > 0 && firstWord ? Math.round((firstWord.length / 5) / minutes) : 0;
-                        typingStats = `typed in ${typingTimeSec}s · ${physicalWpm} Physical · ${actualWpm} Actual WPM`;
+                        typingStats = `typed in ${typingTimeSec}s · ${physicalWpm} physical · ${actualWpm} actual wpm`;
                     }
-                    status.innerHTML = `<span>Computed in ${elapsed}s</span><span class="typing-stats">${typingStats}</span>`;
+                    status.innerHTML = `<span>computed in ${elapsed}s</span><span class="typing-stats">${typingStats}</span>`;
                     renderPredictions(predictions, false);
                 }
             }
@@ -619,7 +619,7 @@
                     isWordCommitted = false;
                     if (mode === 'sentence') { sentenceState = 'idle'; awaitingPredictions = []; }
                     results.innerHTML = '';
-                    status.innerHTML = '<span>Ready</span><span class="typing-stats"></span>';
+                    status.innerHTML = '<span>ready</span><span class="typing-stats"></span>';
                     return;
                 }
                 if (mode === 'sentence' && sentenceState === 'awaiting') { sentenceState = 'typing'; }
@@ -636,9 +636,9 @@
                     }
                 }, debounceDelay);
                 if (mode === 'word' && swipe.length >= DEBOUNCE_THRESHOLD) {
-                    status.innerHTML = '<span>Typing...</span><span class="typing-stats"></span>';
+                    status.innerHTML = '<span>typing...</span><span class="typing-stats"></span>';
                 } else if (mode === 'sentence') {
-                    status.innerHTML = '<span>Typing...</span><span class="typing-stats"></span>';
+                    status.innerHTML = '<span>typing...</span><span class="typing-stats"></span>';
                 }
             });
         }
